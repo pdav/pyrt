@@ -100,6 +100,7 @@ ISIS_LLC_HDR = (0xfe, 0xfe, 0x03, 0x83)
 
 ISIS_HDR_LEN       =  8
 ISIS_HELLO_HDR_LEN = 19
+ISIS_PP_HELLO_HDR_LEN = 12
 ISIS_LSP_HDR_LEN   = 19
 ISIS_CSN_HDR_LEN   = 25
 ISIS_PSN_HDR_LEN   =  9
@@ -175,6 +176,7 @@ VLEN_FIELDS = { 0L:   "Null",                # null
                 137L: "DynamicHostname",     # dynamic hostname support
 
                 180L: "LeafNode",            #
+		211L: "Restart",             # draft-shand-isis-restart-01.txt
 
                 222L: "MultipleTopologyISN", #
                 229L: "MultipleTopologies",  #
@@ -187,10 +189,9 @@ VLEN_FIELDS = { 0L:   "Null",                # null
                 }
 DLIST = DLIST + [VLEN_FIELDS]
 
-STATES = { 0L: "NULL",
-           1L: "INITIALISING",
-           2L: "UP",
-           3L: "DOWN",
+STATES = { 0L: "INITIALISING",
+           1L: "UP",
+           2L: "DOWN",
            }
 DLIST = DLIST + [STATES]
 
@@ -383,7 +384,21 @@ def parseIsisIsh(msg_len, msg, verbose=1, level=0):
 
 def parseIsisPPIsh(msg_len, msg, verbose=1, level=0):
 
-    print level*INDENT + "[ *** PP ISH NOT PARSED *** ]"
+    (circuit_type, src_id, holdtimer,
+     pdu_len, local_circuit_id) = struct.unpack(">B 6s H H B",
+                                  msg[:ISIS_PP_HELLO_HDR_LEN])
+    if verbose > 1:
+       print prtbin(level*INDENT,msg[:ISIS_PP_HELLO_HDR_LEN])
+    if verbose > 0:
+        print (level+1)*INDENT +\
+              "circuit type: %s, holdtimer: %d, " %\
+              (CIRCUIT_TYPES[circuit_type], holdtimer) +\
+              "PDU len: %d,"  % (pdu_len)
+        print (level+1)*INDENT + "src id: %s,  local circuit id: %s" %\
+              (str2hex(src_id), local_circuit_id)
+
+    vfields = parseVLenFields(msg[ISIS_PP_HELLO_HDR_LEN:], verbose, level)
+    return (circuit_type, src_id, holdtimer, pdu_len, local_circuit_id, vfields)
 
 #-------------------------------------------------------------------------------
 
@@ -619,6 +634,12 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
                 fval = fval[16:]
 
+        elif ftype == VLEN_FIELDS["Authentication"]:
+            ## 10
+	    AuthType, AuthValue = struct.unpack(">B%ds" % (flen-1, )  , fval)
+            if verbose > 0:
+                print level*INDENT + "AuthType %d AuthValue %s" % (AuthType, AuthValue)
+
         elif ftype == VLEN_FIELDS["IPIntReach"]:
             ## 128
             rv["V"] = []
@@ -708,6 +729,19 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             if verbose > 0:
                 print level*INDENT + "dynamic hostname: '%s'" % name
 
+        elif ftype == VLEN_FIELDS["Restart"]:
+            ## 211
+	    Flags, HoldingTime , RestartingNeighborID = struct.unpack("> BH%ds" % (flen-3, ) ,  fval)
+            rv["V"] = HoldingTime
+ 	    if verbose > 0:
+		print level*INDENT  + "Flags: %d HoldingTime  %s RestartingNeighborID %s" % (Flags, HoldingTime, str2hex(RestartingNeighborID))
+
+        elif ftype == VLEN_FIELDS["ThreeWayHello"]:
+            ## 240
+            (Adjacency_State,) = struct.unpack(">B", fval)
+            if verbose >0:
+                print level*INDENT + "Adjacency state: %d(%s)" % (Adjacency_State  , STATES[Adjacency_State] )
+
         else:
             if verbose > 0:
                 print level*INDENT + "[ *** %s *** ]" % VLEN_FIELDS[ftype]
@@ -750,7 +784,7 @@ class Isis:
 
             self._rtx_at = 0
 
-            (src_mac, _, _, _, _) = parseMacHdr(rx_ish)
+            (src_mac, _, _, _, _, _) = parseMacHdr(rx_ish)
             self._nbr_mac_addr = src_mac
 
             hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
@@ -939,6 +973,11 @@ class Isis:
                           circuit, src_id, holdtimer, pdu_len, prio, lan_id)
         return ret
 
+    def mkPPIshHdr(self, circuit, src_id, holdtimer, pdu_len, local_circuit_id):
+        ret = struct.pack(">B 6s H H B",
+			  circuit, src_id, holdtimer, pdu_len, local_circuit_id)
+        return ret
+
     def mkVLenField(self, ftype_str, flen, fval=None):
 
         ftype = VLEN_FIELDS[ftype_str]
@@ -950,6 +989,10 @@ class Isis:
 
         elif ftype == VLEN_FIELDS["Padding"]:
             return padPkt(flen+2, "")
+
+        elif ftype == VLEN_FIELDS["Authentication"]:
+            ret = ret + struct.pack("B", 1)
+            ret = ret + struct.pack("%ds" % (flen - 1, ), fval[1])
 
         elif ftype == VLEN_FIELDS["ProtoSupported"]:
             for i in range(flen):
@@ -993,7 +1036,9 @@ class Isis:
         prio = 0 # we don't ever want to be elected Designated System
         ish  = ish + self.mkIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
                              holdtimer, ISIS_PDU_LEN, prio, lan_id)
-
+	if AUTH == 1:
+           ish = ish + self.mkVLenField("Authentication",
+	   				1+len(password), (1, password) )
         ish = ish + self.mkVLenField("ProtoSupported", 1, (NLPIDS["IP"],))
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
@@ -1005,11 +1050,34 @@ class Isis:
 
         return ish
 
+    def mkPPIsh(self,  dest_mac , holdtimer, local_circuit_id):
+
+        isns = []
+        dst_mac = dest_mac
+        msg_type = MSG_TYPES["PPHello"]
+        ish = self.mkMacHdr(dst_mac, self._src_mac)
+        ish = ish + self.mkIsisHdr(msg_type, ISIS_HDR_LEN + ISIS_PP_HELLO_HDR_LEN)
+        ish = ish + self.mkPPIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
+                             holdtimer, ISIS_PDU_LEN, local_circuit_id)
+
+        if AUTH == 1:
+           ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
+
+        ish = ish + self.mkVLenField("ProtoSupported", 1, (NLPIDS["IP"],))
+        ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
+                                ((len(self._area_addr), self._area_addr),))
+        ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+
+        if len(isns) > 0:
+            ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
+        ish  = padPkt(MAC_PKT_LEN, ish)
+
+        return ish
     ############################################################################
 
     def processFsm(self, msg, verbose=1, level=0):
 
-        (src_mac, _, _, _, _) = parseMacHdr(msg)
+        (src_mac, _, _, _, _, _) = parseMacHdr(msg)
         (_, _, _, _, msg_type, _, _, _) = parseIsisHdr(msg[MAC_HDR_LEN:])
 
         hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
@@ -1040,6 +1108,29 @@ class Isis:
             if adj._rtx_at <= RETX_THRESH:
                 self.sendMsg(adj._tx_ish, verbose, level)
 
+        elif msg_type == MSG_TYPES["PPHello"]:
+	    print "PPHELLO"
+            hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
+            hdr_end   = hdr_start + ISIS_PP_HELLO_HDR_LEN
+            (_, src_id, _, _, Neighbor_local_circuit_id) =\
+               struct.unpack("> B 6s H H B", msg[hdr_start:hdr_end])
+            k = msg_type - 14 # PP
+            if not self._adjs[smac].has_key(k):
+                # new adjacency
+                adj = Isis.Adj(k, msg, self.mkPPIsh( src_mac, Isis._holdtimer, Neighbor_local_circuit_id))
+                self._adjs[smac][k] = adj
+
+            else:
+                # existing adjacency
+                adj = self._adjs[smac][k]
+                adj._state = STATES["UP"]
+                adj._rx_ish = msg
+                adj._tx_ish = self.mkPPIsh( src_mac,
+                                         Isis._holdtimer*Isis._hold_multiplier, Neighbor_local_circuit_id)
+
+            if adj._rtx_at <= RETX_THRESH:
+                self.sendMsg(adj._tx_ish, verbose, level)
+
         else:
             pass
 
@@ -1054,9 +1145,12 @@ if __name__ == "__main__":
     #---------------------------------------------------------------------------
 
     global VERBOSE, DUMP_MRTD
+    global AUTH
+    global Neighbor_local_circuit_id
 
     VERBOSE   = 1
     DUMP_MRTD = 0
+    AUTH = 0
 
     file_pfx  = mrtd.DEFAULT_FILE
     file_sz   = mrtd.DEFAULT_SIZE
@@ -1078,6 +1172,7 @@ if __name__ == "__main__":
         -i|--ip-addr    : *** HACK *** set the IP address to advertise
         -s|--src-id     : set the source ID of this IS
         -l|--lan-id     : set the LAN ID of this IS (def: "<srcid>:01")
+        -p|--cleartext-password  : set the cleartext password on this interface IIS messages
 
         --device        : Set the device to receive on (def: %s)
 
@@ -1096,11 +1191,12 @@ if __name__ == "__main__":
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "hqvVdyf:s:l:a:z:i:",
+                                   "hqvVdyf:s:l:a:z:i:p:",
                                    ("help", "quiet", "verbose", "VERBOSE",
                                     "dump", "dump-isis2",
                                     "file-pfx=", "file-size=", "device=",
-                                    "src-id=", "lan-id=", "area-addr=", "ip-addr=" ))
+                                    "src-id=", "lan-id=", "area-addr=", "ip-addr=",
+				    "cleartext-password="))
     except (getopt.error):
         usage()
 
@@ -1158,6 +1254,10 @@ if __name__ == "__main__":
 
         elif x in ('-i', '--ip-addr'):
             src_ip = str2id(y)
+
+        elif x in ('-p', '--cleartext-password'):
+            password = y
+            AUTH = 1;
 
         else:
             usage()
