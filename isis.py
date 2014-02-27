@@ -83,6 +83,7 @@
 
 import sys, getopt, socket, string, os.path, struct, time, select, math
 from mutils import *
+from isis_extra import check_cksum
 
 #-------------------------------------------------------------------------------
 
@@ -406,13 +407,15 @@ def parseIsisLsp(msg_len, msg, verbose=1, level=0):
 
     (pdu_len, lifetime, lsp_id, seq_no, cksm, bits) = parseLspHdr(msg)
 
+    cksm_ok, cksm_msg = check_cksum (msg, 4, pdu_len - 12, cksm, 16, True)
+
     if verbose > 0:
 
         if verbose > 1:
             print prtbin(level*INDENT, msg[:ISIS_LSP_HDR_LEN])
         print (level+1)*INDENT +\
-              "PDU len: %d, lifetime: %d, seq.no: %d, cksm: %s" %\
-              (pdu_len, lifetime, seq_no, int2hex(cksm))
+              "PDU len: %d, lifetime: %d, seq.no: %d, cksm: %s (%s)" %\
+              (pdu_len, lifetime, seq_no, int2hex(cksm), cksm_msg)
         print (level+1)*INDENT +\
               "LSP ID: src: %s, pn: %s, LSP no: %d" %\
               (str2hex(lsp_id[0]), int2hex(lsp_id[1]), lsp_id[2])
@@ -429,7 +432,7 @@ def parseIsisLsp(msg_len, msg, verbose=1, level=0):
                ("UNUSED", "L1", "UNUSED", "L1+L2")[ist])
         print (level+1)*INDENT + "attached: %s" % att
 
-    vfields = parseVLenFields(msg[ISIS_LSP_HDR_LEN:], verbose, level)
+    vfields = parseVLenFields(msg[ISIS_LSP_HDR_LEN:], verbose, level) if cksm_ok else {}
     return (pdu_len, lifetime, lsp_id, seq_no, cksm, bits, vfields)
 
 #-------------------------------------------------------------------------------
