@@ -643,6 +643,23 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             if verbose > 0:
                 print level*INDENT + "AuthType %d AuthValue %s" % (AuthType, AuthValue)
 
+        elif ftype == VLEN_FIELDS["TEIISNeighbor"]:
+            ## 22 (http://tools.ietf.org/html/rfc5305#page-3)
+            rv["V"] = []
+            cnt = 0
+            while len(fval) > 0:
+                cnt += 1
+                nid, metric, sublen = struct.unpack("> 7s 3s B", fval[:11])
+
+                rv["V"].append({ "NID": nid, "METRIC": metric })
+
+                if verbose > 0:
+                    print level*INDENT +\
+                            "IS Neighbour %d: id: %s metric: %d" %\
+                            (cnt, str2hex(nid), str2int(metric))
+
+                fval = fval[11+sublen:]
+
         elif ftype == VLEN_FIELDS["IPIntReach"]:
             ## 128
             rv["V"] = []
