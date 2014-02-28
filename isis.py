@@ -741,6 +741,43 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             if verbose > 0:
                 print level*INDENT + "interface IP addresses: " + `addrs_strs`
 
+        elif ftype == VLEN_FIELDS["TEIPReach"]:
+            ## 135 (http://tools.ietf.org/html/rfc5305#page-8)
+            rv["V"] = []
+            cnt = 0
+            while len(fval) > 0:
+                cnt = cnt + 1
+                metric, control = struct.unpack("> L B", fval[:5])
+                fval = fval[5:]
+
+                dist = control & (1 << 7)
+                subtlv = control & (1 << 6)
+                mask = control & 63
+                addr = []
+
+                if mask > 0:
+                    nb_bytes = (mask - 1) / 8 + 1
+
+                    addr = list (struct.unpack ("> %dc" % nb_bytes, fval[:nb_bytes]))
+                    fval = fval[nb_bytes:]
+
+                ipif = { "ADDR"   : addr,
+                         "MASK"   : mask,
+                         "METRIC" : metric,
+                         "DIST"   : dist
+                         }
+                rv["V"].append(ipif)
+
+                if verbose > 0:
+                    print level*INDENT +\
+                          "%d: prefix: %s metric: %d distribution: %s" %\
+                          (cnt, pfx2str(addr, mask), metric, "down" if dist else "up")
+
+                # Ignore sub-TLVs (if any)
+                if subtlv:
+                    subtlv_length = struct.unpack ("> B", fval[0])
+                    fval = fval[1+subtlv_length:]
+
         elif ftype == VLEN_FIELDS["DynamicHostname"]:
             ## 137
             name = struct.unpack("> %ds" % flen, fval)
