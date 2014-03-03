@@ -408,7 +408,7 @@ def parseIsisLsp(msg_len, msg, verbose=1, level=0):
 
     (pdu_len, lifetime, lsp_id, seq_no, cksm, bits) = parseLspHdr(msg)
 
-    cksm_ok, cksm_msg = check_cksum (msg, 4, pdu_len - 12, cksm, 16, True)
+    cksm_ok, cksm_msg = check_cksum (msg, 4, pdu_len - 12, cksm, 16)
 
     if verbose > 0:
 

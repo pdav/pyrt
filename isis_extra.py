@@ -2,7 +2,7 @@
 
 from mutils import int2hex
 
-def check_cksum (data, offset, length, checksum, offset_check, log_error=False):
+def check_cksum (data, offset, length, checksum, offset_check):
 
     if checksum == 0:
         return False, 'no checksum'
@@ -68,10 +68,6 @@ def check_cksum (data, offset, length, checksum, offset_check, log_error=False):
     result = (x << 8) | (y & 0xFF)
 
     if result != checksum:
-        if log_error:
-            with open ('cksum_error.log', 'a') as logfile:
-                logfile.write ('Incorrect checksum %s (%s expected)\n' %\
-                        (int2hex (checksum), int2hex (result)))
         return False, 'incorrect'
 
     return True, 'ok'
