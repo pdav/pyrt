@@ -1044,6 +1044,11 @@ class Isis:
                           circuit, src_id, holdtimer, pdu_len, local_circuit_id)
         return ret
 
+    def mkPsnHdr(self, pdu_len, src_id):
+
+        ret = struct.pack(">H 6s B", pdu_len, src_id, 0)
+        return ret
+
     def mkVLenField(self, ftype_str, flen, fval=None):
 
         ftype = VLEN_FIELDS[ftype_str]
@@ -1055,6 +1060,9 @@ class Isis:
 
         elif ftype == VLEN_FIELDS["Padding"]:
             return padPkt(flen+2, "")
+
+        elif ftype == VLEN_FIELDS["LSPEntries"]:
+            ret += struct.pack(">H 8s L H", fval[0], fval[1], fval[2], fval[3])
 
         elif ftype == VLEN_FIELDS["Authentication"]:
             ret = ret + struct.pack("B", 1)
@@ -1141,6 +1149,33 @@ class Isis:
 
         return ish
 
+    def mkPsn(self, ln, dst_mac, lifetime, lsp_id, seq_no, cksm):
+
+        if ln == 1:
+            msg_type = MSG_TYPES["L1PSN"]
+
+        elif ln == 2:
+            msg_type = MSG_TYPES["L2PSN"]
+
+        else:
+            raise PsnTypeExc
+
+        hdr_len = ISIS_HDR_LEN + ISIS_PSN_HDR_LEN
+
+        vfields = ""
+
+        if AUTH == 1:
+            vfields += self.mkVLenField("Authentication", 1 + len(password), (1, password))
+
+        vfields += self.mkVLenField("LSPEntries", 16, (lifetime, lsp_id, seq_no, cksm))
+
+        psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
+        psn += self.mkIsisHdr(msg_type, hdr_len)
+        psn += self.mkPsnHdr(hdr_len + len(vfields), self._src_id)
+        psn += vfields
+
+        return psn
+
     ############################################################################
 
     def processFsm(self, msg, verbose=1, level=0):
@@ -1199,6 +1234,20 @@ class Isis:
 
             if adj._rtx_at <= RETX_THRESH:
                 self.sendMsg(adj._tx_ish, verbose, level)
+
+        elif msg_type in (MSG_TYPES["L1LSP"], MSG_TYPES["L2LSP"]):
+
+            # Check whether a point-to-point adjacency exists with this host
+            if self._adjs[smac].has_key(MSG_TYPES["PPHello"] - 14):
+
+                k = msg_type - 17 # L1 or L2?
+
+                hdr_end = hdr_start + ISIS_LSP_HDR_LEN
+                (_, lifetime, lsp_id, seq_no, cksm, _) = \
+                       struct.unpack("> HH 8s LHB", msg[hdr_start:hdr_end])
+
+                psnp = self.mkPsn (k, src_mac, lifetime, lsp_id, seq_no, cksm)
+                self.sendMsg(psnp, verbose, level)
 
         else:
             pass
