@@ -1114,7 +1114,8 @@ class Isis:
         if AUTH == 1:
            ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
 
-        ish = ish + self.mkVLenField("ProtoSupported", 1, (NLPIDS["IP"],))
+        ish = ish + self.mkVLenField("ProtoSupported", 2,
+                                (NLPIDS["IP"], NLPIDS["IPV6"]))
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
         ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
@@ -1138,7 +1139,8 @@ class Isis:
         if AUTH == 1:
            ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
 
-        ish = ish + self.mkVLenField("ProtoSupported", 1, (NLPIDS["IP"],))
+        ish = ish + self.mkVLenField("ProtoSupported", 2,
+                                (NLPIDS["IP"], NLPIDS["IPV6"]))
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
         ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
