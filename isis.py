@@ -177,7 +177,8 @@ VLEN_FIELDS = { 0L:   "Null",                # null
                 137L: "DynamicHostname",     # dynamic hostname support
 
                 180L: "LeafNode",            #
-		211L: "Restart",             # draft-shand-isis-restart-01.txt
+
+                211L: "Restart",             # draft-shand-isis-restart-01.txt
 
                 222L: "MultipleTopologyISN", #
                 229L: "MultipleTopologies",  #
@@ -639,9 +640,12 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
         elif ftype == VLEN_FIELDS["Authentication"]:
             ## 10
-	    AuthType, AuthValue = struct.unpack(">B%ds" % (flen-1, )  , fval)
+            AuthType, AuthValue = struct.unpack(">B%ds" % (flen-1), fval)
+            rv["V"] = { "TYPE": AuthType, "VALUE": AuthValue }
+
             if verbose > 0:
-                print level*INDENT + "AuthType %d AuthValue %s" % (AuthType, AuthValue)
+                print level*INDENT +\
+                            "AuthType %d AuthValue %s" % (AuthType, AuthValue)
 
         elif ftype == VLEN_FIELDS["TEIISNeighbor"]:
             ## 22 (http://tools.ietf.org/html/rfc5305#page-3)
@@ -788,10 +792,14 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
         elif ftype == VLEN_FIELDS["Restart"]:
             ## 211
-	    Flags, HoldingTime , RestartingNeighborID = struct.unpack("> BH%ds" % (flen-3, ) ,  fval)
+            Flags, HoldingTime, RestartingNeighborID =\
+                      struct.unpack("> BH%ds" % (flen-3), fval)
             rv["V"] = HoldingTime
- 	    if verbose > 0:
-		print level*INDENT  + "Flags: %d HoldingTime  %s RestartingNeighborID %s" % (Flags, HoldingTime, str2hex(RestartingNeighborID))
+
+            if verbose > 0:
+              print level*INDENT +\
+                        "Flags: %d HoldingTime: %s RestartingNeighborID: %s" %\
+                                  (Flags, HoldingTime, str2hex(RestartingNeighborID))
 
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             ## 240
@@ -1031,8 +1039,9 @@ class Isis:
         return ret
 
     def mkPPIshHdr(self, circuit, src_id, holdtimer, pdu_len, local_circuit_id):
+
         ret = struct.pack(">B 6s H H B",
-			  circuit, src_id, holdtimer, pdu_len, local_circuit_id)
+                          circuit, src_id, holdtimer, pdu_len, local_circuit_id)
         return ret
 
     def mkVLenField(self, ftype_str, flen, fval=None):
@@ -1093,9 +1102,10 @@ class Isis:
         prio = 0 # we don't ever want to be elected Designated System
         ish  = ish + self.mkIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
                              holdtimer, ISIS_PDU_LEN, prio, lan_id)
-	if AUTH == 1:
-           ish = ish + self.mkVLenField("Authentication",
-	   				1+len(password), (1, password) )
+
+        if AUTH == 1:
+           ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
+
         ish = ish + self.mkVLenField("ProtoSupported", 1, (NLPIDS["IP"],))
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
@@ -1130,6 +1140,7 @@ class Isis:
         ish  = padPkt(MAC_PKT_LEN, ish)
 
         return ish
+
     ############################################################################
 
     def processFsm(self, msg, verbose=1, level=0):
@@ -1138,15 +1149,16 @@ class Isis:
         (_, _, _, _, msg_type, _, _, _) = parseIsisHdr(msg[MAC_HDR_LEN:])
 
         hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
-        hdr_end   = hdr_start + ISIS_HELLO_HDR_LEN
-        (_, src_id, _, _, _, lan_id) =\
-               struct.unpack("> B 6s H H B 7s", msg[hdr_start:hdr_end])
 
         smac = str2hex(src_mac)
         if not self._adjs.has_key(smac):
             self._adjs[smac] = { }
 
         if msg_type in (MSG_TYPES["L1LANHello"], MSG_TYPES["L2LANHello"]):
+
+            hdr_end = hdr_start + ISIS_HELLO_HDR_LEN
+            (_, src_id, _, _, _, lan_id) =\
+                   struct.unpack("> B 6s H H B 7s", msg[hdr_start:hdr_end])
 
             k = msg_type - 14 # L1 or L2?
             if not self._adjs[smac].has_key(k):
@@ -1166,11 +1178,11 @@ class Isis:
                 self.sendMsg(adj._tx_ish, verbose, level)
 
         elif msg_type == MSG_TYPES["PPHello"]:
-	    print "PPHELLO"
-            hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
-            hdr_end   = hdr_start + ISIS_PP_HELLO_HDR_LEN
+            
+            hdr_end = hdr_start + ISIS_PP_HELLO_HDR_LEN
             (_, src_id, _, _, Neighbor_local_circuit_id) =\
-               struct.unpack("> B 6s H H B", msg[hdr_start:hdr_end])
+                   struct.unpack("> B 6s H H B", msg[hdr_start:hdr_end])
+
             k = msg_type - 14 # PP
             if not self._adjs[smac].has_key(k):
                 # new adjacency
