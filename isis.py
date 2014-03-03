@@ -1019,9 +1019,9 @@ class Isis:
 
     #---------------------------------------------------------------------------
 
-    def mkMacHdr(self, dst_mac, src_mac):
+    def mkMacHdr(self, dst_mac, src_mac, length = ISIS_PKT_LEN):
 
-        hdr = struct.pack(">6s 6s H 3B ", dst_mac, src_mac, ISIS_PKT_LEN,
+        hdr = struct.pack(">6s 6s H 3B ", dst_mac, src_mac, length,
                           ISIS_LLC_HDR[0], ISIS_LLC_HDR[1], ISIS_LLC_HDR[2])
         return hdr
 
