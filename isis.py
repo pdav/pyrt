@@ -83,7 +83,7 @@
 
 import sys, getopt, socket, string, os.path, struct, time, select, math
 from mutils import *
-from isis_extra import check_cksum
+from isis_extra import check_cksum, getifaddrs
 
 #-------------------------------------------------------------------------------
 
@@ -836,6 +836,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 class LLCExc(Exception): pass
 class VLenFieldExc(Exception): pass
 class InvalidIPAddrExc(Exception): pass
+class NoIPAddrExc(Exception): pass
 
 #-------------------------------------------------------------------------------
 
@@ -909,28 +910,41 @@ class Isis:
         self._sock.bind(self._sockaddr)
         self._sockname = self._sock.getsockname()
 
-        # XXX HACK: want to query _sock for IP addr; can't figure out
-        # how at the moment
         if src_ip:
             try:
-                self._src_ip = socket.inet_pton(socket.AF_INET, src_ip)
+                self._src_ip = (socket.inet_pton(socket.AF_INET, src_ip),)
                 self._src_ip6 = None
                 self._proto = [ NLPIDS["IP"] ]
 
             except socket.error:
                 try:
                     self._src_ip = None
-                    self._src_ip6 = socket.inet_pton(socket.AF_INET6, src_ip)
+                    self._src_ip6 = (socket.inet_pton(socket.AF_INET6, src_ip),)
                     self._proto = [ NLPIDS["IPV6"] ]
 
                 except socket.error:
                     raise InvalidIPAddrExc
 
         else:
-            self._src_ip = socket.inet_pton(socket.AF_INET,
-                                socket.gethostbyname(socket.gethostname()))
-            self._src_ip6 = None
-            self._proto = [ NLPIDS["IP"] ]
+            iface_addrs = getifaddrs()[dev]
+            self._proto = list()
+
+            if socket.AF_INET in iface_addrs.keys():
+                self._src_ip = map(lambda x: socket.inet_pton(socket.AF_INET, x['addr']),
+                                   iface_addrs[socket.AF_INET])
+                self._proto.append(NLPIDS["IP"])
+            else:
+                self._src_ip = None
+
+            if socket.AF_INET6 in iface_addrs.keys():
+                self._src_ip6 = map(lambda x: socket.inet_pton(socket.AF_INET6, x['addr']),
+                                    iface_addrs[socket.AF_INET6])
+                self._proto.append(NLPIDS["IPV6"])
+            else:
+                self._src_ip6 = None
+
+            if not self._proto:
+                raise NoIPAddrExc
 
         self._src_mac   = self._sockname[-1]
         self._area_addr = area_addr
@@ -1154,9 +1168,9 @@ class Isis:
                                 ((len(self._area_addr), self._area_addr),))
 
         if self._src_ip:
-            ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+            ish = ish + self.mkVLenField("IPIfAddr", 4 * len(self._src_ip), self._src_ip)
         if self._src_ip6:
-            ish = ish + self.mkVLenField("IPv6IfAddr", 16, (self._src_ip6,))
+            ish = ish + self.mkVLenField("IPv6IfAddr", 16 * len(self._src_ip6), self._src_ip6)
 
         if len(isns) > 0:
             ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
@@ -1183,9 +1197,9 @@ class Isis:
                                 ((len(self._area_addr), self._area_addr),))
 
         if self._src_ip:
-            ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+            ish = ish + self.mkVLenField("IPIfAddr", 4 * len(self._src_ip), self._src_ip)
         if self._src_ip6:
-            ish = ish + self.mkVLenField("IPv6IfAddr", 16, (self._src_ip6,))
+            ish = ish + self.mkVLenField("IPv6IfAddr", 16 * len(self._src_ip6), self._src_ip6)
 
         if len(isns) > 0:
             ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
