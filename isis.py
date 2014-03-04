@@ -738,12 +738,14 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
         elif ftype == VLEN_FIELDS["IPIfAddr"]:
             ## 132
-            addrs = struct.unpack("> %dL" % (flen/4, ), fval)
-            addrs_strs = map(lambda x: id2str(x), addrs)
+            rv["V"] = []
+            while len(fval) > 0:
+                (addr,) = struct.unpack("> 4s", fval[:4])
+                rv["V"].append(socket.inet_ntop(socket.AF_INET, addr))
+                fval = fval[4:]
 
-            rv["V"] = addrs_strs
             if verbose > 0:
-                print level*INDENT + "interface IP addresses: " + `addrs_strs`
+                print level*INDENT + "interface IP addresses: " + `rv["V"]`
 
         elif ftype == VLEN_FIELDS["TEIPReach"]:
             ## 135 (http://tools.ietf.org/html/rfc5305#page-8)
@@ -898,9 +900,10 @@ class Isis:
         # XXX HACK: want to query _sock for IP addr; can't figure out
         # how at the moment
         if src_ip:
-            self._src_ip = src_ip
+            self._src_ip = socket.inet_pton(socket.AF_INET, src_ip)
         else:
-            self._src_ip = str2id(socket.gethostbyname(socket.gethostname()))
+            self._src_ip = socket.inet_pton(socket.AF_INET,
+                                socket.gethostbyname(socket.gethostname()))
 
         self._src_mac   = self._sockname[-1]
         self._area_addr = area_addr
@@ -928,7 +931,7 @@ class Isis:
         LAN ID: %s
         Adjs: %s\n""" %\
             (VERSION,
-             id2str(self._src_ip), str2hex(self._src_mac),
+             socket.inet_ntop(socket.AF_INET, self._src_ip), str2hex(self._src_mac),
              str2hex(self._area_addr), str2hex(self._src_id),
              str2hex(self._lan_id), `self._adjs`)
 
@@ -1074,7 +1077,7 @@ class Isis:
 
         elif ftype == VLEN_FIELDS["IPIfAddr"]:
             for i in range(flen/4):
-                ret = ret + struct.pack(">L", fval[i])
+                ret = ret + struct.pack(">4s", fval[i])
 
         elif ftype == VLEN_FIELDS["IIHIISNeighbor"]:
             for i in range(flen/6):
@@ -1278,6 +1281,7 @@ if __name__ == "__main__":
     area_addr = None
     src_id    = None
     lan_id    = None
+    src_ip    = None
 
     #---------------------------------------------------------------------------
 
@@ -1373,7 +1377,7 @@ if __name__ == "__main__":
             file_sz = max(string.atof(y), mrtd.MIN_FILE_SZ)
 
         elif x in ('-i', '--ip-addr'):
-            src_ip = str2id(y)
+            src_ip = y
 
         elif x in ('-p', '--cleartext-password'):
             password = y
