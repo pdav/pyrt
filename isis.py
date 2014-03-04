@@ -835,6 +835,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
 class LLCExc(Exception): pass
 class VLenFieldExc(Exception): pass
+class InvalidIPAddrExc(Exception): pass
 
 #-------------------------------------------------------------------------------
 
@@ -911,12 +912,26 @@ class Isis:
         # XXX HACK: want to query _sock for IP addr; can't figure out
         # how at the moment
         if src_ip:
-            self._src_ip = socket.inet_pton(socket.AF_INET, src_ip)
+            try:
+                self._src_ip = socket.inet_pton(socket.AF_INET, src_ip)
+                self._src_ip6 = None
+                self._proto = [ NLPIDS["IP"] ]
+
+            except socket.error:
+                try:
+                    self._src_ip = None
+                    self._src_ip6 = socket.inet_pton(socket.AF_INET6, src_ip)
+                    self._proto = [ NLPIDS["IPV6"] ]
+
+                except socket.error:
+                    raise InvalidIPAddrExc
+
         else:
             self._src_ip = socket.inet_pton(socket.AF_INET,
                                 socket.gethostbyname(socket.gethostname()))
+            self._src_ip6 = None
+            self._proto = [ NLPIDS["IP"] ]
 
-        self._proto     = [ NLPIDS["IP"] ]
         self._src_mac   = self._sockname[-1]
         self._area_addr = area_addr
 
@@ -1137,7 +1152,11 @@ class Isis:
 
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
-        ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+
+        if self._src_ip:
+            ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+        if self._src_ip6:
+            ish = ish + self.mkVLenField("IPv6IfAddr", 16, (self._src_ip6,))
 
         if len(isns) > 0:
             ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
@@ -1162,7 +1181,11 @@ class Isis:
         
         ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
                                 ((len(self._area_addr), self._area_addr),))
-        ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+
+        if self._src_ip:
+            ish = ish + self.mkVLenField("IPIfAddr", 4, (self._src_ip,))
+        if self._src_ip6:
+            ish = ish + self.mkVLenField("IPv6IfAddr", 16, (self._src_ip6,))
 
         if len(isns) > 0:
             ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
