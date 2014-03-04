@@ -803,6 +803,17 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
                         "Flags: %d HoldingTime: %s RestartingNeighborID: %s" %\
                                   (Flags, HoldingTime, str2hex(RestartingNeighborID))
 
+        elif ftype == VLEN_FIELDS["IPv6IfAddr"]:
+            ## 232
+            rv["V"] = []
+            while len(fval) > 0:
+                (addr,) = struct.unpack("> 16s", fval[:16])
+                rv["V"].append(socket.inet_ntop(socket.AF_INET6, addr))
+                fval = fval[16:]
+
+            if verbose > 0:
+                print level*INDENT + "interface IPv6 addresses: " + `rv["V"]`
+
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             ## 240
             (Adjacency_State,) = struct.unpack(">B", fval)
@@ -1078,6 +1089,10 @@ class Isis:
         elif ftype == VLEN_FIELDS["IPIfAddr"]:
             for i in range(flen/4):
                 ret = ret + struct.pack(">4s", fval[i])
+
+        elif ftype == VLEN_FIELDS["IPv6IfAddr"]:
+            for i in range(flen/16):
+                ret += struct.pack(">16s", fval[i])
 
         elif ftype == VLEN_FIELDS["IIHIISNeighbor"]:
             for i in range(flen/6):
