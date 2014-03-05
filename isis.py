@@ -81,9 +81,11 @@
 # fact quite a lot nicer once adjacency is established.  ISIS is a much nicer
 # protocol than BGP which sucks high vacuum.
 
-import sys, getopt, socket, string, os.path, struct, time, select, math
+import sys, getopt, string, os.path, struct, time, select, math
 from mutils import *
 from isis_extra import check_cksum, getifaddrs
+from socket import AF_INET, AF_INET6, PF_PACKET, SOCK_RAW, socket,\
+                   inet_ntop, inet_pton, htons, error as sockError
 
 #-------------------------------------------------------------------------------
 
@@ -741,7 +743,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             rv["V"] = []
             while len(fval) > 0:
                 (addr,) = struct.unpack("> 4s", fval[:4])
-                rv["V"].append(socket.inet_ntop(socket.AF_INET, addr))
+                rv["V"].append(inet_ntop(AF_INET, addr))
                 fval = fval[4:]
 
             if verbose > 0:
@@ -808,7 +810,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             rv["V"] = []
             while len(fval) > 0:
                 (addr,) = struct.unpack("> 16s", fval[:16])
-                rv["V"].append(socket.inet_ntop(socket.AF_INET6, addr))
+                rv["V"].append(inet_ntop(AF_INET6, addr))
                 fval = fval[16:]
 
             if verbose > 0:
@@ -842,7 +844,7 @@ class NoIPAddrExc(Exception): pass
 
 class Isis:
 
-    _eth_p_802_2 = socket.htons(0x0004)
+    _eth_p_802_2 = htons(0x0004)
     _dev_str     = "eth0"
 
     _version          = 1
@@ -904,41 +906,40 @@ class Isis:
 
     def __init__(self, dev, area_addr, src_id=None, lan_id=None, src_ip=None):
 
-        self._sock = socket.socket(socket.PF_PACKET, socket.SOCK_RAW,
-                                   Isis._eth_p_802_2)
+        self._sock = socket(PF_PACKET, SOCK_RAW, Isis._eth_p_802_2)
         self._sockaddr = (dev, 0x0000)
         self._sock.bind(self._sockaddr)
         self._sockname = self._sock.getsockname()
 
         if src_ip:
             try:
-                self._src_ip = (socket.inet_pton(socket.AF_INET, src_ip),)
+                self._src_ip = (inet_pton(AF_INET, src_ip),)
                 self._src_ip6 = None
                 self._proto = [ NLPIDS["IP"] ]
 
-            except socket.error:
+            except sockError:
                 try:
                     self._src_ip = None
-                    self._src_ip6 = (socket.inet_pton(socket.AF_INET6, src_ip),)
+                    self._src_ip6 = (inet_pton(AF_INET6, src_ip),)
                     self._proto = [ NLPIDS["IPV6"] ]
 
-                except socket.error:
+                except sockError:
                     raise InvalidIPAddrExc
 
         else:
             iface_addrs = getifaddrs()[dev]
             self._proto = list()
 
-            if socket.AF_INET in iface_addrs.keys():
-                self._src_ip = map(lambda x: socket.inet_pton(socket.AF_INET, x['addr']),
-                                   iface_addrs[socket.AF_INET])
+            if AF_INET in iface_addrs.keys():
+                self._src_ip = map(lambda x: inet_pton(AF_INET, x['addr']),
+                                   iface_addrs[AF_INET])
                 self._proto.append(NLPIDS["IP"])
             else:
                 self._src_ip = None
 
-            if socket.AF_INET6 in iface_addrs.keys():
-                self._src_ip6 = map(lambda x: socket.inet_pton(socket.AF_INET6, x['addr']),
-                                    iface_addrs[socket.AF_INET6])
+            if AF_INET6 in iface_addrs.keys():
+                self._src_ip6 = map(lambda x: inet_pton(AF_INET6, x['addr']),
+                                    iface_addrs[AF_INET6])
                 self._proto.append(NLPIDS["IPV6"])
             else:
                 self._src_ip6 = None
@@ -972,7 +973,7 @@ class Isis:
         LAN ID: %s
         Adjs: %s\n""" %\
             (VERSION,
-             socket.inet_ntop(socket.AF_INET, self._src_ip), str2hex(self._src_mac),
+             inet_ntop(AF_INET, self._src_ip), str2hex(self._src_mac),
              str2hex(self._area_addr), str2hex(self._src_id),
              str2hex(self._lan_id), `self._adjs`)
 
