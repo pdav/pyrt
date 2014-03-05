@@ -187,6 +187,7 @@ VLEN_FIELDS = { 0L:   "Null",                # null
                 232L: "IPv6IfAddr",          #
                 235L: "MTIPReach",           #
                 236L: "IPv6IPReach",         #
+                237L: "MTIPv6IPReach",       #
                 240L: "ThreeWayHello",       #
 
                 254L: "IPSumReach",          #
@@ -198,6 +199,15 @@ STATES = { 0L: "INITIALISING",
            2L: "DOWN",
            }
 DLIST = DLIST + [STATES]
+
+MTID = { 0L: "IPv4 routing topology",
+         1L: "IPv4 in-band management",
+         2L: "IPv6 routing topology",
+         3L: "IPv4 multicast topology",
+         4L: "IPv6 multicast topology",
+         5L: "IPv6 in-band management"
+         }
+DLIST = DLIST + [MTID]
 
 for d in DLIST:
     for k in d.keys():
@@ -808,6 +818,64 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
                         "Flags: %d HoldingTime: %s RestartingNeighborID: %s" %\
                                   (Flags, HoldingTime, str2hex(RestartingNeighborID))
 
+        elif ftype == VLEN_FIELDS["MultipleTopologyISN"]:
+            ## 222
+            (mtid,) = struct.unpack("> H", fval[:2])
+            mtid &= 4095 # keep only the last 12 bits
+            rv["V"] = { 'MTID': mtid, 'NEIGHBORS': [] }
+
+            if verbose > 0:
+                if mtid in MTID.keys():
+                    mtid_str = MTID[mtid]
+                else:
+                    mtid_str = "[ UNKNOWN MT ID: %d ]" % mtid
+                print level*INDENT + mtid_str
+
+            fval = fval[2:]
+            cnt = 0
+            while len(fval) > 0:
+                cnt += 1
+                nid, metric, sublen = struct.unpack("> 7s 3s B", fval[:11])
+
+                rv["V"]["NEIGHBORS"].append({ "NID": nid, "METRIC": metric })
+
+                if verbose > 0:
+                    print level*INDENT +\
+                            "IS Neighbour %d: id: %s metric: %d" %\
+                            (cnt, str2hex(nid), str2int(metric))
+
+                fval = fval[11+sublen:]
+
+        elif ftype == VLEN_FIELDS["MultipleTopologies"]:
+            ## 229
+            rv["V"] = []
+            while len(fval) > 0:
+                (row,) = struct.unpack ("> H", fval[:2])
+
+                overload = row & (1 << 7)
+                attach = row & (1 << 6)
+                mtid = row & 4095
+                mt = { 'MTID': mtid,
+                       'OVERLOAD': overload,
+                       'ATTACH': attach
+                       }
+                rv["V"].append(mt)
+
+                if verbose > 0:
+                    if mtid in MTID.keys():
+                        mtid_str = MTID[mtid]
+                    else:
+                        mtid_str = "[ UNKNOWN MT ID: %d ]" % mtid
+
+                    if overload:
+                        mtid_str += ", OVERLOAD bit set"
+                    if attach:
+                        mtid_str += ", ATTACH bit set"
+
+                    print level*INDENT + mtid_str
+
+                fval = fval[2:]
+
         elif ftype == VLEN_FIELDS["IPv6IfAddr"]:
             ## 232
             rv["V"] = []
@@ -818,6 +886,57 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
             if verbose > 0:
                 print level*INDENT + "interface IPv6 addresses: " + `rv["V"]`
+
+        elif ftype == VLEN_FIELDS["MTIPReach"]:
+            ## 235
+            (mtid,) = struct.unpack("> H", fval[:2])
+            mtid &= 4095 # keep only the last 12 bits
+            rv["V"] = { 'MTID': mtid, 'PREFIXES': [] }
+
+            if verbose > 0:
+                if mtid in MTID.keys():
+                    mtid_str = MTID[mtid]
+                else:
+                    mtid_str = "[ UNKNOWN MT ID: %d ]" % mtid
+                print level*INDENT + mtid_str
+
+            fval = fval[2:]
+            cnt = 0
+            while len(fval) > 0:
+                cnt += 1
+                metric, control = struct.unpack("> L B", fval[:5])
+                fval = fval[5:]
+
+                updown = control & (1 << 7)
+                subtlv = control & (1 << 6)
+                plen = control & 63
+
+                if plen > 0:
+                    nb_bytes = int((plen + 7) / 8)
+
+                    (addr,) = struct.unpack ("> %ds" % nb_bytes, fval[:nb_bytes])
+                    addr_str = inet_ntop(AF_INET, addr + "\0"*(4-nb_bytes))
+                    fval = fval[nb_bytes:]
+                else:
+                    addr_str = "0.0.0.0"
+
+                ipif = { 'ADDR'   : addr_str,
+                         'PLEN'   : plen,
+                         'METRIC' : metric,
+                         'UPDOWN' : updown
+                         }
+                rv["V"]["PREFIXES"].append(ipif)
+
+                if verbose > 0:
+                    print level*INDENT +\
+                          "prefix %d: %s/%d metric: %d distribution: %s" %\
+                          (cnt, addr_str, plen, metric,
+                              "down" if updown else "up")
+
+                # Ignore sub-TLVs (if any)
+                if subtlv:
+                    subtlv_length = struct.unpack ("> B", fval[0])
+                    fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["IPv6IPReach"]:
             ## 236
@@ -855,6 +974,59 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             if subtlv:
                 subtlv_length = struct.unpack ("> B", fval[0])
                 fval = fval[1+subtlv_length:]
+
+        elif ftype == VLEN_FIELDS["MTIPv6IPReach"]:
+            ## 237
+            (mtid,) = struct.unpack("> H", fval[:2])
+            mtid &= 4095 # keep only the last 12 bits
+            rv["V"] = { 'MTID': mtid, 'PREFIXES': [] }
+
+            if verbose > 0:
+                if mtid in MTID.keys():
+                    mtid_str = MTID[mtid]
+                else:
+                    mtid_str = "[ UNKNOWN MT ID: %d ]" % mtid
+                print level*INDENT + mtid_str
+
+            fval = fval[2:]
+            cnt = 0
+            while len(fval) > 0:
+                cnt += 1
+                metric, control, plen = struct.unpack("> L B B", fval[:6])
+                fval = fval[6:]
+
+                updown = control & (1 << 7)
+                external = control & (1 << 6)
+                subtlv = control & (1 << 5)
+
+                if plen > 0:
+                    nb_bytes = int((plen + 7) / 8)
+
+                    (addr,) = struct.unpack("> %ds" % nb_bytes, fval[:nb_bytes])
+                    addr_str = inet_ntop(AF_INET6, addr + "\0"*(16-nb_bytes))
+                    fval = fval[nb_bytes:]
+                else:
+                    addr_str = "::"
+
+                ifip = { 'ADDR'     : addr_str,
+                         'PLEN'     : plen,
+                         'METRIC'   : metric,
+                         'UPDOWN'   : updown,
+                         'EXTERNAL' : external
+                         }
+                rv["V"]["PREFIXES"].append(ifip)
+
+                if verbose > 0:
+                    print level*INDENT +\
+                          "prefix %d: %s/%d metric: %d distribution: %s, %s" %\
+                          (cnt, addr_str, plen, metric,
+                              "down" if updown else "up",
+                              "external" if external else "internal")
+
+                # Ignore sub-TLVs (if any)
+                if subtlv:
+                    subtlv_length = struct.unpack ("> B", fval[0])
+                    fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             ## 240
