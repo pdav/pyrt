@@ -819,6 +819,43 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             if verbose > 0:
                 print level*INDENT + "interface IPv6 addresses: " + `rv["V"]`
 
+        elif ftype == VLEN_FIELDS["IPv6IPReach"]:
+            ## 236
+            metric, control, plen = struct.unpack("> L B B", fval[:6])
+            fval = fval[5:]
+
+            updown = control & (1 << 7)
+            external = control & (1 << 6)
+            subtlv = control & (1 << 5)
+
+            if plen > 0:
+                nb_bytes = int((plen + 7) / 8)
+
+                (addr,) = struct.unpack("> %ds" % nb_bytes, fval[:nb_bytes])
+                addr_str = inet_ntop(AF_INET6, addr + "\0"*(16-nb_bytes))
+                fval = fval[nb_bytes:]
+            else:
+                addr_str = "::"
+
+            rv["V"] = { 'ADDR'     : addr_str,
+                        'PLEN'     : plen,
+                        'METRIC'   : metric,
+                        'UPDOWN'   : updown,
+                        'EXTERNAL' : external
+                        }
+
+            if verbose > 0:
+                print level*INDENT +\
+                      "prefix: %s/%d metric: %d distribution: %s, %s" %\
+                      (addr_str, plen, metric,
+                          "down" if updown else "up",
+                          "external" if external else "internal")
+
+            # Ignore sub-TLVs (if any)
+            if subtlv:
+                subtlv_length = struct.unpack ("> B", fval[0])
+                fval = fval[1+subtlv_length:]
+
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             ## 240
             (Adjacency_State,) = struct.unpack(">B", fval)
