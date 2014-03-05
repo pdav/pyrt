@@ -758,28 +758,31 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
                 metric, control = struct.unpack("> L B", fval[:5])
                 fval = fval[5:]
 
-                dist = control & (1 << 7)
+                updown = control & (1 << 7)
                 subtlv = control & (1 << 6)
-                mask = control & 63
-                addr = []
+                plen = control & 63
 
-                if mask > 0:
-                    nb_bytes = (mask - 1) / 8 + 1
+                if plen > 0:
+                    nb_bytes = int((plen + 7) / 8)
 
-                    addr = list (struct.unpack ("> %dc" % nb_bytes, fval[:nb_bytes]))
+                    (addr,) = struct.unpack ("> %ds" % nb_bytes, fval[:nb_bytes])
+                    addr_str = inet_ntop(AF_INET, addr + "\0"*(4-nb_bytes))
                     fval = fval[nb_bytes:]
+                else:
+                    addr_str = "0.0.0.0"
 
-                ipif = { "ADDR"   : addr,
-                         "MASK"   : mask,
-                         "METRIC" : metric,
-                         "DIST"   : dist
+                ipif = { 'ADDR'   : addr_str,
+                         'PLEN'   : plen,
+                         'METRIC' : metric,
+                         'UPDOWN' : updown
                          }
                 rv["V"].append(ipif)
 
                 if verbose > 0:
                     print level*INDENT +\
-                          "%d: prefix: %s metric: %d distribution: %s" %\
-                          (cnt, pfx2str(addr, mask), metric, "down" if dist else "up")
+                          "prefix %d: %s/%d metric: %d distribution: %s" %\
+                          (cnt, addr_str, plen, metric,
+                              "down" if updown else "up")
 
                 # Ignore sub-TLVs (if any)
                 if subtlv:
