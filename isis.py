@@ -1178,13 +1178,10 @@ class Isis:
 
         return ish
 
-    def mkPPIsh(self,  dest_mac , holdtimer, local_circuit_id):
+    def mkPPIsh(self, dst_mac, holdtimer, local_circuit_id):
 
-        isns = []
-        dst_mac = dest_mac
-        msg_type = MSG_TYPES["PPHello"]
         ish = self.mkMacHdr(dst_mac, self._src_mac)
-        ish = ish + self.mkIsisHdr(msg_type, ISIS_HDR_LEN + ISIS_PP_HELLO_HDR_LEN)
+        ish = ish + self.mkIsisHdr(MSG_TYPES["PPHello"], ISIS_HDR_LEN + ISIS_PP_HELLO_HDR_LEN)
         ish = ish + self.mkPPIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
                              holdtimer, ISIS_PDU_LEN, local_circuit_id)
 
@@ -1201,8 +1198,6 @@ class Isis:
         if self._src_ip6:
             ish = ish + self.mkVLenField("IPv6IfAddr", 16 * len(self._src_ip6), self._src_ip6)
 
-        if len(isns) > 0:
-            ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
         ish  = padPkt(MAC_PKT_LEN, ish)
 
         return ish
