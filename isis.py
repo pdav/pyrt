@@ -1358,6 +1358,9 @@ class Isis:
             for i in range(flen/6):
                 ret = ret + struct.pack("6s", fval[i])
 
+        elif ftype == VLEN_FIELDS["ThreeWayHello"]:
+            ret += struct.pack("B", fval)
+
         else:
             raise VLenFieldExc
 
@@ -1408,7 +1411,7 @@ class Isis:
 
         return ish
 
-    def mkPPIsh(self, dst_mac, holdtimer, local_circuit_id):
+    def mkPPIsh(self, dst_mac, holdtimer, local_circuit_id, state):
 
         ish = self.mkMacHdr(dst_mac, self._src_mac)
         ish = ish + self.mkIsisHdr(MSG_TYPES["PPHello"], ISIS_HDR_LEN + ISIS_PP_HELLO_HDR_LEN)
@@ -1417,6 +1420,8 @@ class Isis:
 
         if AUTH == 1:
            ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
+
+        ish += self.mkVLenField("ThreeWayHello", 1, state)
 
         ish = ish + self.mkVLenField("ProtoSupported", len(self._proto), self._proto)
         
@@ -1494,10 +1499,29 @@ class Isis:
 
             Neighbor_local_circuit_id = rv["V"]["LOCAL_CIRCUIT_ID"]
 
+            if VLEN_FIELDS["ThreeWayHello"] in rv["V"]["VFIELDS"]:
+                rx_state = rv["V"]["VFIELDS"][VLEN_FIELDS["ThreeWayHello"]][0]["V"]["STATE"]
+
+                if   rx_state == STATES["DOWN"]:
+                    tx_state = STATES["INITIALIZING"]
+
+                elif rx_state == STATES["INITIALIZING"]:
+                    tx_state = STATES["UP"]
+
+                elif rx_state == STATES["UP"]:
+                    tx_state = STATES["UP"]
+
+                else:
+                    tx_state = STATES["DOWN"]
+
+            else:
+                tx_state = STATES["UP"]
+
             if not self._adjs[smac].has_key(3):
                 # new adjacency
                 adj = Isis.Adj(3, rv, self.mkPPIsh(src_mac, Isis._holdtimer,
-                                                   Neighbor_local_circuit_id))
+                                                   Neighbor_local_circuit_id,
+                                                   tx_state))
                 self._adjs[smac][3] = adj
 
             else:
@@ -1506,7 +1530,8 @@ class Isis:
                 adj._state = STATES["UP"]
                 adj._tx_ish = self.mkPPIsh(src_mac,
                                          Isis._holdtimer*Isis._hold_multiplier,
-                                         Neighbor_local_circuit_id)
+                                         Neighbor_local_circuit_id,
+                                         tx_state)
 
             if adj._rtx_at <= RETX_THRESH:
                 self.sendMsg(adj._tx_ish, verbose, level)
