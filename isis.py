@@ -194,8 +194,8 @@ VLEN_FIELDS = { 0L:   "Null",                # null
                 }
 DLIST = DLIST + [VLEN_FIELDS]
 
-STATES = { 0L: "INITIALISING",
-           1L: "UP",
+STATES = { 0L: "UP",
+           1L: "INITIALIZING",
            2L: "DOWN",
            }
 DLIST = DLIST + [STATES]
@@ -1035,9 +1035,29 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             ## 240
-            (Adjacency_State,) = struct.unpack(">B", fval)
+            (state,) = struct.unpack("> B", fval[0])
+            rv["V"] = { 'STATE': state }
+            twhello_str = STATES[state]
+
+            if flen >= 5:
+                (lcid,) = struct.unpack("> L", fval[1:5])
+                rv["V"]["LCID"] = lcid
+                twhello_str += ", ext. local circuit ID: %d" % lcid
+
+                if flen >= 11:
+                    (nbr_sid,) = struct.unpack("> 6s", fval[5:11])
+                    rv["V"]["NBR_SID"] = nbr_sid
+                    twhello_str += "\n" + level*INDENT + "Neighbor ID: %s" %\
+                                      nbr_sid
+
+                    if flen >= 15:
+                        (nbr_lcid,) = struct.unpack("> L", fval[11:15])
+                        rv["V"]["NBR_LCID"] = nbr_lcid
+                        twhello_str += ", neighbor ext. local circuit ID: %d" %\
+                                          nbr_lcid
+
             if verbose >0:
-                print level*INDENT + "Adjacency state: %d(%s)" % (Adjacency_State  , STATES[Adjacency_State] )
+                print level*INDENT + "Adjacency state: " + twhello_str
 
         else:
             if verbose > 0:
@@ -1076,7 +1096,7 @@ class Isis:
 
         def __init__(self, atype, ish_rv, tx_ish):
 
-            self._state  = STATES["INITIALISING"]
+            self._state  = STATES["INITIALIZING"]
             self._type   = atype
             self._tx_ish = tx_ish
 
