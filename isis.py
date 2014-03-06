@@ -1150,9 +1150,11 @@ class Isis:
                 self._src_ip = None
 
             if AF_INET6 in iface_addrs.keys():
-                self._src_ip6 = map(lambda x: inet_pton(AF_INET6, x['addr']),
-                                    iface_addrs[AF_INET6])
-                self._proto.append(NLPIDS["IPV6"])
+                self._src_ip6 = [ inet_pton(AF_INET6, x['addr'])
+                                      for x in iface_addrs[AF_INET6]
+                                          if 'scope' in x.keys() ]
+                if self._src_ip6:
+                    self._proto.append(NLPIDS["IPV6"])
             else:
                 self._src_ip6 = None
 
