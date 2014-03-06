@@ -1120,11 +1120,16 @@ class Isis:
 
         def __repr__(self):
 
-            ret = """st: %s, ht: %d, retx: %d, neighbour areas: %s,
-            nbr src id: %s, lan id: %s""" %\
-            (STATES[self._state], self._holdtimer, self._rtx_at,
-             `map(str2hex, self._nbr_areas)`,
-             str2hex(self._nbr_src_id), str2hex(self._nbr_lan_id))
+            ret = "st: %s, ht: %d, retx: %d, " %\
+                    (STATES[self._state], self._holdtimer, self._rtx_at)
+
+            ret += "neighbour areas: %s, nbr src id: %s, " %\
+                    (`map(str2hex, self._nbr_areas)`, str2hex(self._nbr_src_id))
+
+            if self._type == 3:
+                ret += "local circuit id: %d" % self._nbr_local_circuit_id
+            else:
+                ret += "lan id: %s" % str2hex(self._nbr_lan_id)
 
             return ret
 
@@ -1194,16 +1199,19 @@ class Isis:
 
     def __repr__(self):
 
-        ret = """Passive ISIS speaker, version %s:
-        Src IP: %s, Src MAC: %s
-        Area address: %s
-        Src ID: %s
-        LAN ID: %s
-        Adjs: %s\n""" %\
-            (VERSION,
-             inet_ntop(AF_INET, self._src_ip), str2hex(self._src_mac),
-             str2hex(self._area_addr), str2hex(self._src_id),
-             str2hex(self._lan_id), `self._adjs`)
+        ret = "Passive ISIS speaker, version %s:\n" % VERSION
+        ret +="\tSrc MAC: %s\n" % str2hex(self._src_mac)
+
+        if self._src_ip:
+            ret += "\tSrc IP(s): %s\n" % `map(lambda x: inet_ntop(AF_INET, x), self._src_ip)`
+
+        if self._src_ip6:
+            ret += "\tSrc IPv6(s): %s\n" % `map(lambda x: inet_ntop(AF_INET6, x), self._src_ip6)`
+
+        ret += "\tArea address: %s\n" % str2hex(self._area_addr)
+        ret += "\tSrc ID: %s\n" % str2hex(self._src_id)
+        ret += "\tLAN ID: %s\n" % str2hex(self._lan_id)
+        ret += "\tAdjs: %s" % `self._adjs`
 
         return ret
 
