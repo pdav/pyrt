@@ -1074,40 +1074,29 @@ class Isis:
 
     class Adj:
 
-        def __init__(self, atype, rx_ish, tx_ish):
+        def __init__(self, atype, ish_rv, tx_ish):
 
             self._state  = STATES["INITIALISING"]
             self._type   = atype
             self._tx_ish = tx_ish
-            self._rx_ish = rx_ish
 
             self._rtx_at = 0
 
-            (src_mac, _, _, _, _, _) = parseMacHdr(rx_ish)
-            self._nbr_mac_addr = src_mac
+            self._nbr_mac_addr = ish_rv["H"]["SRC_MAC"]
 
-            hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
-            hdr_end   = hdr_start + ISIS_HELLO_HDR_LEN
-            (_, src_id, ht, _, prio, lan_id) =\
-                   struct.unpack(">B 6s H H B 7s", rx_ish[hdr_start:hdr_end])
+            self._holdtimer  = ish_rv["V"]["HOLDTIMER"]
+            self._nbr_src_id = ish_rv["V"]["SRC_ID"]
 
-            self._holdtimer  = ht
-            self._nbr_src_id = src_id
-            self._nbr_lan_id = lan_id
+            if ish_rv["T"] == MSG_TYPES["PPHello"]:
+                self._nbr_local_circuit_id = ish_rv["V"]["LOCAL_CIRCUIT_ID"]
+            else:
+                self._nbr_lan_id = ish_rv["V"]["LAN_ID"] 
 
             self._nbr_areas = []
-            fields = rx_ish[MAC_HDR_LEN+ISIS_HDR_LEN+ISIS_HELLO_HDR_LEN:]
-            while len(fields) > 0:
-
-                (ftype, flen) = struct.unpack(">BB", fields[0:2])
-                fval          = fields[2:2+flen]
-                if ftype == VLEN_FIELDS["AreaAddress"]:
-                    while len(fval) > 0:
-                        (l,) = struct.unpack("B", fval[0])
-                        self._nbr_areas.append(fval[1:1+l])
-                        fval = fval[1+l:]
-
-                fields = fields[2+flen:]
+            if VLEN_FIELDS["AreaAddress"] in ish_rv["V"]["VFIELDS"]:
+                for field in ish_rv["V"]["VFIELDS"][VLEN_FIELDS["AreaAddress"]]:
+                    for area_addr in field["V"]:
+                        self._nbr_areas.append(area_addr)
 
         def __repr__(self):
 
@@ -1277,7 +1266,7 @@ class Isis:
                   (level*INDENT, msg_len, prthex((level+1)*INDENT, msg))
 
         rv = parseIsisMsg(msg_len, msg, verbose, level)
-        self.processFsm(msg, verbose, level)
+        self.processFsm(rv, verbose, level)
 
         return rv
 
@@ -1326,7 +1315,8 @@ class Isis:
             return padPkt(flen+2, "")
 
         elif ftype == VLEN_FIELDS["LSPEntries"]:
-            ret += struct.pack(">H 8s L H", fval[0], fval[1], fval[2], fval[3])
+            ret += struct.pack(">H 6sBB L H", fval[0], fval[1][0],
+                               fval[1][1], fval[1][2], fval[2], fval[3])
 
         elif ftype == VLEN_FIELDS["Authentication"]:
             ret = ret + struct.pack("B", 1)
@@ -1451,12 +1441,10 @@ class Isis:
 
     ############################################################################
 
-    def processFsm(self, msg, verbose=1, level=0):
+    def processFsm(self, rv, verbose=1, level=0):
 
-        (src_mac, _, _, _, _, _) = parseMacHdr(msg)
-        (_, _, _, _, msg_type, _, _, _) = parseIsisHdr(msg[MAC_HDR_LEN:])
-
-        hdr_start = MAC_HDR_LEN + ISIS_HDR_LEN
+        src_mac = rv["H"]["SRC_MAC"]
+        msg_type = rv["T"]
 
         smac = str2hex(src_mac)
         if not self._adjs.has_key(smac):
@@ -1464,21 +1452,18 @@ class Isis:
 
         if msg_type in (MSG_TYPES["L1LANHello"], MSG_TYPES["L2LANHello"]):
 
-            hdr_end = hdr_start + ISIS_HELLO_HDR_LEN
-            (_, src_id, _, _, _, lan_id) =\
-                   struct.unpack("> B 6s H H B 7s", msg[hdr_start:hdr_end])
+            lan_id = rv["V"]["LAN_ID"]
 
             k = msg_type - 14 # L1 or L2?
             if not self._adjs[smac].has_key(k):
                 # new adjacency
-                adj = Isis.Adj(k, msg, self.mkIsh(k, self._lan_id, Isis._holdtimer))
+                adj = Isis.Adj(k, rv, self.mkIsh(k, self._lan_id, Isis._holdtimer))
                 self._adjs[smac][k] = adj
 
             else:
                 # existing adjacency
                 adj = self._adjs[smac][k]
                 adj._state = STATES["UP"]
-                adj._rx_ish = msg
                 adj._tx_ish = self.mkIsh(k, lan_id,
                                          Isis._holdtimer*Isis._hold_multiplier)
 
@@ -1486,22 +1471,19 @@ class Isis:
                 self.sendMsg(adj._tx_ish, verbose, level)
 
         elif msg_type == MSG_TYPES["PPHello"]:
-            
-            hdr_end = hdr_start + ISIS_PP_HELLO_HDR_LEN
-            (_, src_id, _, _, Neighbor_local_circuit_id) =\
-                   struct.unpack("> B 6s H H B", msg[hdr_start:hdr_end])
+
+            Neighbor_local_circuit_id = rv["V"]["LOCAL_CIRCUIT_ID"]
 
             k = msg_type - 14 # PP
             if not self._adjs[smac].has_key(k):
                 # new adjacency
-                adj = Isis.Adj(k, msg, self.mkPPIsh( src_mac, Isis._holdtimer, Neighbor_local_circuit_id))
+                adj = Isis.Adj(k, rv, self.mkPPIsh( src_mac, Isis._holdtimer, Neighbor_local_circuit_id))
                 self._adjs[smac][k] = adj
 
             else:
                 # existing adjacency
                 adj = self._adjs[smac][k]
                 adj._state = STATES["UP"]
-                adj._rx_ish = msg
                 adj._tx_ish = self.mkPPIsh( src_mac,
                                          Isis._holdtimer*Isis._hold_multiplier, Neighbor_local_circuit_id)
 
@@ -1515,9 +1497,10 @@ class Isis:
 
                 k = msg_type - 17 # L1 or L2?
 
-                hdr_end = hdr_start + ISIS_LSP_HDR_LEN
-                (_, lifetime, lsp_id, seq_no, cksm, _) = \
-                       struct.unpack("> HH 8s LHB", msg[hdr_start:hdr_end])
+                lifetime = rv["V"]["LIFETIME"]
+                lsp_id = rv["V"]["LSP_ID"]
+                seq_no = rv["V"]["SEQ_NO"]
+                cksm = rv["V"]["CKSM"]
 
                 psnp = self.mkPsn (k, src_mac, lifetime, lsp_id, seq_no, cksm)
                 self.sendMsg(psnp, verbose, level)
