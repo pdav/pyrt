@@ -339,7 +339,12 @@ def parseIsisMsg(msg_len, msg, verbose=1, level=0):
              rv["V"]["VFIELDS"]) = parseIsisIsh(msg_len, msg, verbose, level)
 
         elif msg_type == MSG_TYPES["PPHello"]:
-            parseIsisPPIsh(msg_len, msg, verbose, level)
+            (rv["V"]["CIRCUIT_TYPE"],
+             rv["V"]["SRC_ID"],
+             rv["V"]["HOLDTIMER"],
+             rv["V"]["PDU_LEN"],
+             rv["V"]["LOCAL_CIRCUIT_ID"],
+             rv["V"]["VFIELDS"]) = parseIsisPPIsh(msg_len, msg, verbose, level)
 
         elif msg_type in (MSG_TYPES["L1LSP"], MSG_TYPES["L2LSP"]):
             (rv["V"]["PDU_LEN"],
