@@ -1048,7 +1048,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
                     (nbr_sid,) = struct.unpack("> 6s", fval[5:11])
                     rv["V"]["NBR_SID"] = nbr_sid
                     twhello_str += "\n" + level*INDENT + "Neighbor ID: %s" %\
-                                      nbr_sid
+                                      str2hex(nbr_sid)
 
                     if flen >= 15:
                         (nbr_lcid,) = struct.unpack("> L", fval[11:15])
@@ -1154,7 +1154,7 @@ class Isis:
 
         else:
             iface_addrs = getifaddrs()[dev]
-            self._proto = list()
+            self._proto = []
 
             if AF_INET in iface_addrs.keys():
                 self._src_ip = map(lambda x: inet_pton(AF_INET, x['addr']),
@@ -1494,18 +1494,19 @@ class Isis:
 
             Neighbor_local_circuit_id = rv["V"]["LOCAL_CIRCUIT_ID"]
 
-            k = msg_type - 14 # PP
-            if not self._adjs[smac].has_key(k):
+            if not self._adjs[smac].has_key(3):
                 # new adjacency
-                adj = Isis.Adj(k, rv, self.mkPPIsh( src_mac, Isis._holdtimer, Neighbor_local_circuit_id))
-                self._adjs[smac][k] = adj
+                adj = Isis.Adj(3, rv, self.mkPPIsh(src_mac, Isis._holdtimer,
+                                                   Neighbor_local_circuit_id))
+                self._adjs[smac][3] = adj
 
             else:
                 # existing adjacency
-                adj = self._adjs[smac][k]
+                adj = self._adjs[smac][3]
                 adj._state = STATES["UP"]
-                adj._tx_ish = self.mkPPIsh( src_mac,
-                                         Isis._holdtimer*Isis._hold_multiplier, Neighbor_local_circuit_id)
+                adj._tx_ish = self.mkPPIsh(src_mac,
+                                         Isis._holdtimer*Isis._hold_multiplier,
+                                         Neighbor_local_circuit_id)
 
             if adj._rtx_at <= RETX_THRESH:
                 self.sendMsg(adj._tx_ish, verbose, level)
