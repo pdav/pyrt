@@ -1135,6 +1135,26 @@ class Isis:
 
     #---------------------------------------------------------------------------
 
+    class LSP:
+
+        def __init__(self, lsp_id, lifetime, seq_no, cksm):
+
+            self._id_src   = lsp_id[0]
+            self._id_pn    = lsp_id[1]
+            self._id_no    = lsp_id[2]
+            self._lifetime = lifetime
+            self._seq_no   = seq_no
+            self._cksm     = cksm
+
+        def __repr__(self):
+
+            ret = "LSP ID: src: %s, pn: %s, no: %d\n" %\
+                  (str2hex(self._id_src), int2hex(self._id_pn), self._id_no)
+            ret += "lifetime: %d, seq.no: %d, cksm: %s" %\
+                   (self._lifetime, self._seq_no, int2hex(self._cksm))
+
+    #---------------------------------------------------------------------------
+
     def __init__(self, dev, area_addr, src_id=None, lan_id=None, src_ip=None):
 
         self._sock = socket(PF_PACKET, SOCK_RAW, Isis._eth_p_802_2)
@@ -1194,6 +1214,7 @@ class Isis:
             self._lan_id = self._src_id + '\001'
 
         self._adjs  = { }
+        self._lsps  = { }
         self._rcvd  = ""
         self._mrtd  = None
 
@@ -1343,8 +1364,10 @@ class Isis:
             return padPkt(flen+2, "")
 
         elif ftype == VLEN_FIELDS["LSPEntries"]:
-            ret += struct.pack(">H 6sBB L H", fval[0], fval[1][0],
-                               fval[1][1], fval[1][2], fval[2], fval[3])
+            for i in range(len(fval)):
+                ret += struct.pack(">H 6sBB L H", fval[i][0],
+                                   fval[i][1][0], fval[i][1][1],
+                                   fval[i][1][2], fval[i][2], fval[i][3])
 
         elif ftype == VLEN_FIELDS["Authentication"]:
             ret = ret + struct.pack("B", 1)
@@ -1445,7 +1468,7 @@ class Isis:
 
         return ish
 
-    def mkPsn(self, ln, dst_mac, lifetime, lsp_id, seq_no, cksm):
+    def mkPsn(self, ln, dst_mac, lsp_entries):
 
         if ln == 1:
             msg_type = MSG_TYPES["L1PSN"]
@@ -1463,7 +1486,8 @@ class Isis:
         if AUTH == 1:
             vfields += self.mkVLenField("Authentication", 1 + len(password), (1, password))
 
-        vfields += self.mkVLenField("LSPEntries", 16, (lifetime, lsp_id, seq_no, cksm))
+        if lsp_entries:
+            vfields += self.mkVLenField("LSPEntries", 16 * len(lsp_entries), lsp_entries)
 
         psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
         psn += self.mkIsisHdr(msg_type, hdr_len)
@@ -1556,7 +1580,50 @@ class Isis:
                 seq_no = rv["V"]["SEQ_NO"]
                 cksm = rv["V"]["CKSM"]
 
-                psnp = self.mkPsn (k, src_mac, lifetime, lsp_id, seq_no, cksm)
+                id_str = "%s.%s-%s" %\
+                    (str2hex(lsp_id[0]), int2hex(lsp_id[1]), int2hex(lsp_id[2]))
+
+                if self._lsps.has_key(id_str):
+                    lsp = self._lsps[id_str]
+                    lsp._lifetime = lifetime
+                    lsp._seq_no   = seq_no
+                    lsp._cksm     = cksm
+                else:
+                    lsp = Isis.LSP(lsp_id, lifetime, seq_no, cksm)
+                    self._lsps[id_str] = lsp
+
+                psnp_entry = [ lifetime, lsp_id, seq_no, cksm ]
+
+                psnp = self.mkPsn (k, src_mac, [ psnp_entry ])
+                self.sendMsg(psnp, verbose, level)
+
+        elif msg_type in (MSG_TYPES["L1CSN"], MSG_TYPES["L2CSN"]):
+
+            k = msg_type - 23 # L1 or L2?
+
+            if rv["V"]["VFIELDS"].has_key(VLEN_FIELDS["LSPEntries"]):
+
+                psnp_entries = []
+
+                for field in rv["V"]["VFIELDS"][VLEN_FIELDS["LSPEntries"]]:
+                    for entry in field["V"]:
+                        id_str = "%s.%s-%s" % (str2hex(entry["ID"]),
+                                 int2hex(entry["PN"]), int2hex(entry["NM"]))
+
+                        if self._lsps.has_key(id_str):
+                            lsp = self._lsps[id_str]
+                        else:
+                            lsp = Isis.LSP(
+                                    (entry["ID"], entry["PN"], entry["NM"]),
+                                    0, 0, 0)
+                            self._lsps[id_str] = lsp
+
+                        lsp_entry = [ lsp._lifetime,
+                                      (lsp._id_src, lsp._id_pn, lsp._id_no),
+                                      lsp._seq_no, lsp._cksm ]
+                        psnp_entries.append(lsp_entry)
+
+                psnp = self.mkPsn (k, src_mac, psnp_entries)
                 self.sendMsg(psnp, verbose, level)
 
         else:
