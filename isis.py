@@ -1603,9 +1603,10 @@ class Isis:
 
             if rv["V"]["VFIELDS"].has_key(VLEN_FIELDS["LSPEntries"]):
 
-                psnp_entries = []
-
                 for field in rv["V"]["VFIELDS"][VLEN_FIELDS["LSPEntries"]]:
+
+                    psnp_entries = []
+
                     for entry in field["V"]:
                         id_str = "%s.%s-%s" % (str2hex(entry["ID"]),
                                  int2hex(entry["PN"]), int2hex(entry["NM"]))
@@ -1623,8 +1624,8 @@ class Isis:
                                       lsp._seq_no, lsp._cksm ]
                         psnp_entries.append(lsp_entry)
 
-                psnp = self.mkPsn (k, src_mac, psnp_entries)
-                self.sendMsg(psnp, verbose, level)
+                    psnp = self.mkPsn (k, src_mac, psnp_entries)
+                    self.sendMsg(psnp, verbose, level)
 
         else:
             pass
