@@ -1486,8 +1486,8 @@ class Isis:
         if AUTH == 1:
             vfields += self.mkVLenField("Authentication", 1 + len(password), (1, password))
 
-        if lsp_entries:
-            vfields += self.mkVLenField("LSPEntries", 16 * len(lsp_entries), lsp_entries)
+        for entries in lsp_entries:
+            vfields += self.mkVLenField("LSPEntries", 16 * len(entries), entries)
 
         psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
         psn += self.mkIsisHdr(msg_type, hdr_len)
@@ -1594,7 +1594,7 @@ class Isis:
 
                 psnp_entry = [ lifetime, lsp_id, seq_no, cksm ]
 
-                psnp = self.mkPsn (k, src_mac, [ psnp_entry ])
+                psnp = self.mkPsn (k, src_mac, [[ psnp_entry ]])
                 self.sendMsg(psnp, verbose, level)
 
         elif msg_type in (MSG_TYPES["L1CSN"], MSG_TYPES["L2CSN"]):
@@ -1603,9 +1603,11 @@ class Isis:
 
             if rv["V"]["VFIELDS"].has_key(VLEN_FIELDS["LSPEntries"]):
 
+                psnp_entries = []
+
                 for field in rv["V"]["VFIELDS"][VLEN_FIELDS["LSPEntries"]]:
 
-                    psnp_entries = []
+                    psnp_entries.append([])
 
                     for entry in field["V"]:
                         id_str = "%s.%s-%s" % (str2hex(entry["ID"]),
@@ -1622,10 +1624,10 @@ class Isis:
                         lsp_entry = [ lsp._lifetime,
                                       (lsp._id_src, lsp._id_pn, lsp._id_no),
                                       lsp._seq_no, lsp._cksm ]
-                        psnp_entries.append(lsp_entry)
+                        psnp_entries[-1].append(lsp_entry)
 
-                    psnp = self.mkPsn (k, src_mac, psnp_entries)
-                    self.sendMsg(psnp, verbose, level)
+                psnp = self.mkPsn (k, src_mac, psnp_entries)
+                self.sendMsg(psnp, verbose, level)
 
         else:
             pass
