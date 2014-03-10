@@ -1487,7 +1487,7 @@ class Isis:
 
         for i in range(int((len(lsp_entries)+14) / 15)):
             vfields += self.mkVLenField("LSPEntries",
-                          lsp_entries[(i*15):max((i+1)*15,len(lsp_entries))])
+                          lsp_entries[(i*15):min((i+1)*15,len(lsp_entries))])
 
         psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
         psn += self.mkIsisHdr(msg_type, hdr_len)
