@@ -1610,6 +1610,9 @@ class Isis:
                     for entry in field["V"]:
 
                         lsp_id = (entry["ID"], entry["PN"], entry["NM"])
+                        seq_no = entry["SEQ_NO"]
+                        cksm = entry["CKSM"]
+
                         id_str = "%s.%s-%s" % (str2hex(lsp_id[0]),
                                   int2hex(lsp_id[1]), int2hex(lsp_id[2]))
 
@@ -1619,12 +1622,13 @@ class Isis:
                             lsp = Isis.LSP(lsp_id, 0, 0, 0)
                             self._lsps[id_str] = lsp
 
-                        lsp_entry = [ lsp._lifetime, lsp_id,
-                                      lsp._seq_no, lsp._cksm ]
-                        psnp_entries.append(lsp_entry)
+                        if lsp._seq_no < seq_no or lsp._cksm != cksm:
+                            lsp_entry = [ 0, lsp_id, 0, 0 ]
+                            psnp_entries.append(lsp_entry)
 
-                psnp = self.mkPsn (k, src_mac, psnp_entries)
-                self.sendMsg(psnp, verbose, level)
+                if psnp_entries:
+                    psnp = self.mkPsn (k, src_mac, psnp_entries)
+                    self.sendMsg(psnp, verbose, level)
 
         else:
             pass
