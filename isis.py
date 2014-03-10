@@ -1351,51 +1351,52 @@ class Isis:
         ret = struct.pack(">H 6s B", pdu_len, src_id, 0)
         return ret
 
-    def mkVLenField(self, ftype_str, flen, fval=None):
+    def mkVLenField(self, ftype_str, values=None):
 
+        fval = ""
         ftype = VLEN_FIELDS[ftype_str]
-        ret = struct.pack("2B", ftype, flen)
-        if   ftype == VLEN_FIELDS["AreaAddress"]:
-            for i in range(len(fval)):
-                ret = ret +\
-                      struct.pack("B %ds" % fval[i][0], fval[i][0], fval[i][1])
 
-        elif ftype == VLEN_FIELDS["Padding"]:
-            return padPkt(flen+2, "")
+        if   ftype == VLEN_FIELDS["AreaAddress"]:
+            for entry in values:
+                fval += struct.pack("B %ds" % len(entry), len(entry), entry)
 
         elif ftype == VLEN_FIELDS["LSPEntries"]:
-            for i in range(len(fval)):
-                ret += struct.pack(">H 6sBB L H", fval[i][0],
-                                   fval[i][1][0], fval[i][1][1],
-                                   fval[i][1][2], fval[i][2], fval[i][3])
+            for entry in values:
+                fval += struct.pack(">H 6sBB L H", entry[0], entry[1][0],
+                              entry[1][1], entry[1][2], entry[2], entry[3])
 
         elif ftype == VLEN_FIELDS["Authentication"]:
-            ret = ret + struct.pack("B", 1)
-            ret = ret + struct.pack("%ds" % (flen - 1, ), fval[1])
+            fval = struct.pack("B %ds" % len(values[1]), values[0], values[1])
 
         elif ftype == VLEN_FIELDS["ProtoSupported"]:
-            for i in range(flen):
-                ret = ret + struct.pack("B", fval[i])
+            for entry in values:
+                fval += struct.pack("B", entry)
 
         elif ftype == VLEN_FIELDS["IPIfAddr"]:
-            for i in range(flen/4):
-                ret = ret + struct.pack(">4s", fval[i])
+            for entry in values:
+                fval += struct.pack(">4s", entry)
 
         elif ftype == VLEN_FIELDS["IPv6IfAddr"]:
-            for i in range(flen/16):
-                ret += struct.pack(">16s", fval[i])
+            for entry in values:
+                fval += struct.pack(">16s", entry)
 
         elif ftype == VLEN_FIELDS["IIHIISNeighbor"]:
-            for i in range(flen/6):
-                ret = ret + struct.pack("6s", fval[i])
+            for entry in values:
+                fval += struct.pack("6s", entry)
 
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
-            ret += struct.pack("B", fval)
+            fval = struct.pack("B", values)
 
         else:
-            raise VLenFieldExc
+            raise VLenFieldExc("undefined type '%s'" % ftype_str)
 
-        return ret
+        flen = len(fval)
+        if flen > 255:
+            raise VLenFieldExc("invalid length %d" % flen)
+
+        fhdr = struct.pack("2B", ftype, flen)
+
+        return fhdr + fval
 
     def mkIsh(self, ln, lan_id, holdtimer):
 
@@ -1424,20 +1425,19 @@ class Isis:
                              holdtimer, ISIS_PDU_LEN, prio, lan_id)
 
         if AUTH == 1:
-           ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
+           ish = ish + self.mkVLenField("Authentication", (1, password) )
 
-        ish = ish + self.mkVLenField("ProtoSupported", len(self._proto), self._proto)
+        ish = ish + self.mkVLenField("ProtoSupported", self._proto)
 
-        ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
-                                ((len(self._area_addr), self._area_addr),))
+        ish = ish + self.mkVLenField("AreaAddress", (self._area_addr,))
 
         if self._src_ip:
-            ish = ish + self.mkVLenField("IPIfAddr", 4 * len(self._src_ip), self._src_ip)
+            ish = ish + self.mkVLenField("IPIfAddr", self._src_ip)
         if self._src_ip6:
-            ish = ish + self.mkVLenField("IPv6IfAddr", 16 * len(self._src_ip6), self._src_ip6)
+            ish = ish + self.mkVLenField("IPv6IfAddr", self._src_ip6)
 
         if len(isns) > 0:
-            ish = ish + self.mkVLenField("IIHIISNeighbor", len(isns)*6, isns)
+            ish = ish + self.mkVLenField("IIHIISNeighbor", isns)
         ish  = padPkt(MAC_PKT_LEN, ish)
 
         return ish
@@ -1450,19 +1450,18 @@ class Isis:
                              holdtimer, ISIS_PDU_LEN, local_circuit_id)
 
         if AUTH == 1:
-           ish = ish + self.mkVLenField("Authentication", 1+len(password), (1, password) )
+           ish = ish + self.mkVLenField("Authentication", (1, password) )
 
-        ish += self.mkVLenField("ThreeWayHello", 1, state)
+        ish += self.mkVLenField("ThreeWayHello", state)
 
-        ish = ish + self.mkVLenField("ProtoSupported", len(self._proto), self._proto)
+        ish = ish + self.mkVLenField("ProtoSupported", self._proto)
         
-        ish = ish + self.mkVLenField("AreaAddress", 1+len(self._area_addr),
-                                ((len(self._area_addr), self._area_addr),))
+        ish = ish + self.mkVLenField("AreaAddress", (self._area_addr,))
 
         if self._src_ip:
-            ish = ish + self.mkVLenField("IPIfAddr", 4 * len(self._src_ip), self._src_ip)
+            ish = ish + self.mkVLenField("IPIfAddr", self._src_ip)
         if self._src_ip6:
-            ish = ish + self.mkVLenField("IPv6IfAddr", 16 * len(self._src_ip6), self._src_ip6)
+            ish = ish + self.mkVLenField("IPv6IfAddr", self._src_ip6)
 
         ish  = padPkt(MAC_PKT_LEN, ish)
 
@@ -1484,10 +1483,10 @@ class Isis:
         vfields = ""
 
         if AUTH == 1:
-            vfields += self.mkVLenField("Authentication", 1 + len(password), (1, password))
+            vfields += self.mkVLenField("Authentication", (1, password))
 
         for entries in lsp_entries:
-            vfields += self.mkVLenField("LSPEntries", 16 * len(entries), entries)
+            vfields += self.mkVLenField("LSPEntries", entries)
 
         psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
         psn += self.mkIsisHdr(msg_type, hdr_len)
