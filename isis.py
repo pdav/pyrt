@@ -1266,7 +1266,7 @@ class Isis:
 
         (src_mac, dst_mac, length, dsap, ssap, ctrl) = parseMacHdr(pkt)
         (nlpid, hdr_len, ver_proto_id, resvd,
-         msg_type, ver, eco, user_eco) = parseIsisHdr(pkt)
+         msg_type, ver, eco, user_eco) = parseIsisHdr(pkt[MAC_HDR_LEN:])
 
         if DUMP_MRTD == 1:
             self._mrtd.writeIsisMsg(msg_type, len(pkt), pkt)
@@ -1302,7 +1302,7 @@ class Isis:
             return
 
         (nlpid, hdr_len, ver_proto_id, resvd,
-         msg_type, ver, eco, user_eco) = parseIsisHdr(msg)
+         msg_type, ver, eco, user_eco) = parseIsisHdr(msg[MAC_HDR_LEN:])
 
         if DUMP_MRTD == 1:
             self._mrtd.writeIsisMsg(msg_type, msg_len, msg)
