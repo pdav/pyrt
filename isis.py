@@ -1485,8 +1485,9 @@ class Isis:
         if AUTH == 1:
             vfields += self.mkVLenField("Authentication", (1, password))
 
-        for entries in lsp_entries:
-            vfields += self.mkVLenField("LSPEntries", entries)
+        for i in range(int((len(lsp_entries)+14) / 15)):
+            vfields += self.mkVLenField("LSPEntries",
+                          lsp_entries[(i*15):max((i+1)*15,len(lsp_entries))])
 
         psn = self.mkMacHdr(dst_mac, self._src_mac, 3 + hdr_len + len(vfields))
         psn += self.mkIsisHdr(msg_type, hdr_len)
@@ -1593,7 +1594,7 @@ class Isis:
 
                 psnp_entry = [ lifetime, lsp_id, seq_no, cksm ]
 
-                psnp = self.mkPsn (k, src_mac, [[ psnp_entry ]])
+                psnp = self.mkPsn (k, src_mac, [ psnp_entry ])
                 self.sendMsg(psnp, verbose, level)
 
         elif msg_type in (MSG_TYPES["L1CSN"], MSG_TYPES["L2CSN"]):
@@ -1606,24 +1607,21 @@ class Isis:
 
                 for field in rv["V"]["VFIELDS"][VLEN_FIELDS["LSPEntries"]]:
 
-                    psnp_entries.append([])
-
                     for entry in field["V"]:
-                        id_str = "%s.%s-%s" % (str2hex(entry["ID"]),
-                                 int2hex(entry["PN"]), int2hex(entry["NM"]))
+
+                        lsp_id = (entry["ID"], entry["PN"], entry["NM"])
+                        id_str = "%s.%s-%s" % (str2hex(lsp_id[0]),
+                                  int2hex(lsp_id[1]), int2hex(lsp_id[2]))
 
                         if self._lsps.has_key(id_str):
                             lsp = self._lsps[id_str]
                         else:
-                            lsp = Isis.LSP(
-                                    (entry["ID"], entry["PN"], entry["NM"]),
-                                    0, 0, 0)
+                            lsp = Isis.LSP(lsp_id, 0, 0, 0)
                             self._lsps[id_str] = lsp
 
-                        lsp_entry = [ lsp._lifetime,
-                                      (lsp._id_src, lsp._id_pn, lsp._id_no),
+                        lsp_entry = [ lsp._lifetime, lsp_id,
                                       lsp._seq_no, lsp._cksm ]
-                        psnp_entries[-1].append(lsp_entry)
+                        psnp_entries.append(lsp_entry)
 
                 psnp = self.mkPsn (k, src_mac, psnp_entries)
                 self.sendMsg(psnp, verbose, level)
