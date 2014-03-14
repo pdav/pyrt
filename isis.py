@@ -1646,7 +1646,6 @@ if __name__ == "__main__":
     #---------------------------------------------------------------------------
 
     global VERBOSE, DUMP_MRTD
-    global Neighbor_local_circuit_id
 
     VERBOSE   = 1
     DUMP_MRTD = 0
