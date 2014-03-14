@@ -1219,6 +1219,7 @@ class Isis:
         self._lsps  = { }
         self._rcvd  = ""
         self._mrtd  = None
+        self._dump_mrtd = 0
 
     def __repr__(self):
 
@@ -1270,10 +1271,10 @@ class Isis:
         (nlpid, hdr_len, ver_proto_id, resvd,
          msg_type, ver, eco, user_eco) = parseIsisHdr(pkt[MAC_HDR_LEN:])
 
-        if DUMP_MRTD == 1:
+        if self._dump_mrtd == 1:
             self._mrtd.writeIsisMsg(msg_type, len(pkt), pkt)
 
-        elif DUMP_MRTD == 2:
+        elif self._dump_mrtd == 2:
             self._mrtd.writeIsis2Msg(msg_type, len(pkt), pkt)
 
         if verbose > 2:
@@ -1306,10 +1307,10 @@ class Isis:
         (nlpid, hdr_len, ver_proto_id, resvd,
          msg_type, ver, eco, user_eco) = parseIsisHdr(msg[MAC_HDR_LEN:])
 
-        if DUMP_MRTD == 1:
+        if self._dump_mrtd == 1:
             self._mrtd.writeIsisMsg(msg_type, msg_len, msg)
 
-        elif DUMP_MRTD == 2:
+        elif self._dump_mrtd == 2:
             self._mrtd.writeIsis2Msg(msg_type, msg_len, msg)
 
         if verbose > 2:
@@ -1645,10 +1646,8 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------
 
-    global DUMP_MRTD
-
     verbose   = 1
-    DUMP_MRTD = 0
+    dump_mrtd = 0
 
     file_pfx  = mrtd.DEFAULT_FILE
     file_sz   = mrtd.DEFAULT_SIZE
@@ -1714,11 +1713,11 @@ if __name__ == "__main__":
             verbose = 3
 
         elif x in ('-d', '--dump'):
-            DUMP_MRTD = 1
+            dump_mrtd = 1
             mrtd_type = mrtd.MSG_TYPES["PROTOCOL_ISIS"]
 
         elif x in ('-y', '--dump-isis2'):
-            DUMP_MRTD = 2
+            dump_mrtd = 2
             mrtd_type = mrtd.MSG_TYPES["PROTOCOL_ISIS2"]
 
         elif x in ('-f', '--file-pfx'):
@@ -1768,6 +1767,7 @@ if __name__ == "__main__":
 
     isis = Isis(Isis._dev_str, area_addr, src_id, lan_id, src_ip, passwd)
     isis._mrtd = mrtd.Mrtd(file_pfx, "w+b", file_sz, mrtd_type, isis)
+    isis._dump_mrtd = dump_mrtd
     if verbose > 1:
         print `isis`
 
