@@ -1645,9 +1645,9 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------
 
-    global VERBOSE, DUMP_MRTD
+    global DUMP_MRTD
 
-    VERBOSE   = 1
+    verbose   = 1
     DUMP_MRTD = 0
 
     file_pfx  = mrtd.DEFAULT_FILE
@@ -1705,13 +1705,13 @@ if __name__ == "__main__":
             usage()
 
         elif x in ('-q', '--quiet'):
-            VERBOSE = 0
+            verbose = 0
 
         elif x in ('-v', '--verbose'):
-            VERBOSE = 2
+            verbose = 2
 
         elif x in ('-V', '--VERBOSE'):
-            VERBOSE = 3
+            verbose = 3
 
         elif x in ('-d', '--dump'):
             DUMP_MRTD = 1
@@ -1768,7 +1768,7 @@ if __name__ == "__main__":
 
     isis = Isis(Isis._dev_str, area_addr, src_id, lan_id, src_ip, passwd)
     isis._mrtd = mrtd.Mrtd(file_pfx, "w+b", file_sz, mrtd_type, isis)
-    if VERBOSE > 1:
+    if verbose > 1:
         print `isis`
 
     try:
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
 
             if rfds != []:
                 # need to rx pkt(s)
-                rv = isis.parseMsg(VERBOSE, 0)
+                rv = isis.parseMsg(verbose, 0)
 
             else:
                 # need to tx pkt(s) of some sort
@@ -1792,7 +1792,7 @@ if __name__ == "__main__":
                         adj = isis._adjs[mac][a]
                         adj._rtx_at = adj._rtx_at - elapsed
                         if adj._rtx_at <= RETX_THRESH:
-                            isis.sendMsg(adj._tx_ish, VERBOSE, 0)
+                            isis.sendMsg(adj._tx_ish, verbose, 0)
                             adj._rtx_at = adj._holdtimer
                         timeout = min(timeout, adj._rtx_at-RETX_THRESH)
 
