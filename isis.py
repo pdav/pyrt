@@ -1155,7 +1155,7 @@ class Isis:
 
     #---------------------------------------------------------------------------
 
-    def __init__(self, dev, area_addr, src_id=None, lan_id=None, src_ip=None):
+    def __init__(self, dev, area_addr, src_id=None, lan_id=None, src_ip=None, passwd=None):
 
         self._sock = socket(PF_PACKET, SOCK_RAW, Isis._eth_p_802_2)
         self._sockaddr = (dev, 0x0000)
@@ -1212,6 +1212,8 @@ class Isis:
             self._lan_id = lan_id
         else:
             self._lan_id = self._src_id + '\001'
+
+        self._auth_passwd = passwd
 
         self._adjs  = { }
         self._lsps  = { }
@@ -1424,8 +1426,8 @@ class Isis:
         ish  = ish + self.mkIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
                              holdtimer, ISIS_PDU_LEN, prio, lan_id)
 
-        if AUTH == 1:
-           ish = ish + self.mkVLenField("Authentication", (1, password) )
+        if self._auth_passwd:
+            ish += self.mkVLenField("Authentication", (1, self._auth_passwd))
 
         ish = ish + self.mkVLenField("ProtoSupported", self._proto)
 
@@ -1449,8 +1451,8 @@ class Isis:
         ish = ish + self.mkPPIshHdr(CIRCUIT_TYPES["L1L2Circuit"], self._src_id,
                              holdtimer, ISIS_PDU_LEN, local_circuit_id)
 
-        if AUTH == 1:
-           ish = ish + self.mkVLenField("Authentication", (1, password) )
+        if self._auth_passwd:
+            ish += self.mkVLenField("Authentication", (1, self._auth_passwd))
 
         ish += self.mkVLenField("ThreeWayHello", state)
 
@@ -1482,8 +1484,8 @@ class Isis:
 
         vfields = ""
 
-        if AUTH == 1:
-            vfields += self.mkVLenField("Authentication", (1, password))
+        if self._auth_passwd:
+            vfields += self.mkVLenField("Authentication", (1, self._auth_passwd))
 
         for i in range(int((len(lsp_entries)+14) / 15)):
             vfields += self.mkVLenField("LSPEntries",
@@ -1644,12 +1646,10 @@ if __name__ == "__main__":
     #---------------------------------------------------------------------------
 
     global VERBOSE, DUMP_MRTD
-    global AUTH
     global Neighbor_local_circuit_id
 
     VERBOSE   = 1
     DUMP_MRTD = 0
-    AUTH = 0
 
     file_pfx  = mrtd.DEFAULT_FILE
     file_sz   = mrtd.DEFAULT_SIZE
@@ -1658,6 +1658,7 @@ if __name__ == "__main__":
     src_id    = None
     lan_id    = None
     src_ip    = None
+    passwd    = None
 
     #---------------------------------------------------------------------------
 
@@ -1756,8 +1757,7 @@ if __name__ == "__main__":
             src_ip = y
 
         elif x in ('-p', '--cleartext-password'):
-            password = y
-            AUTH = 1;
+            passwd = y
 
         else:
             usage()
@@ -1767,7 +1767,7 @@ if __name__ == "__main__":
     if not area_addr:
         usage()
 
-    isis = Isis(Isis._dev_str, area_addr, src_id, lan_id, src_ip)
+    isis = Isis(Isis._dev_str, area_addr, src_id, lan_id, src_ip, passwd)
     isis._mrtd = mrtd.Mrtd(file_pfx, "w+b", file_sz, mrtd_type, isis)
     if VERBOSE > 1:
         print `isis`
