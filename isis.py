@@ -1155,7 +1155,10 @@ class Isis:
 
     #---------------------------------------------------------------------------
 
-    def __init__(self, dev, area_addr, src_id=None, lan_id=None, src_ip=None, passwd=None):
+    def __init__(self, dev=None, area_addr, src_id=None, lan_id=None, src_ip=None, passwd=None):
+
+        if not dev:
+            dev = Isis._dev_str
 
         self._sock = socket(PF_PACKET, SOCK_RAW, Isis._eth_p_802_2)
         self._sockaddr = (dev, 0x0000)
@@ -1652,6 +1655,7 @@ if __name__ == "__main__":
     file_pfx  = mrtd.DEFAULT_FILE
     file_sz   = mrtd.DEFAULT_SIZE
     mrtd_type = None
+    device    = None
     area_addr = None
     src_id    = None
     lan_id    = None
@@ -1724,7 +1728,7 @@ if __name__ == "__main__":
             file_pfx = y
 
         elif x in ('--device', ):
-            Isis._dev_str = y
+            device = y
 
         elif x in ('-s', '--src-id'):
             src_id = map(lambda x: int(x, 16), string.split(y, '.'))
@@ -1765,7 +1769,7 @@ if __name__ == "__main__":
     if not area_addr:
         usage()
 
-    isis = Isis(Isis._dev_str, area_addr, src_id, lan_id, src_ip, passwd)
+    isis = Isis(device, area_addr, src_id, lan_id, src_ip, passwd)
     isis._mrtd = mrtd.Mrtd(file_pfx, "w+b", file_sz, mrtd_type, isis)
     isis._dump_mrtd = dump_mrtd
     if verbose > 1:
