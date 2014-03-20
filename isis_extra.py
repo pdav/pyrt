@@ -3,7 +3,6 @@
 from ctypes import *
 from socket import AF_INET, AF_INET6, AF_PACKET, inet_ntop
 from sys import platform
-from mutils import int2hex
 
 def check_cksum (data, offset, length, checksum, offset_check):
 
