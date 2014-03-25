@@ -1155,7 +1155,7 @@ class Isis:
 
     #---------------------------------------------------------------------------
 
-    def __init__(self, dev=None, area_addr, src_id=None, lan_id=None, src_ip=None, passwd=None):
+    def __init__(self, area_addr, dev=None, src_id=None, lan_id=None, src_ip=None, passwd=None):
 
         if not dev:
             dev = Isis._dev_str
@@ -1769,7 +1769,7 @@ if __name__ == "__main__":
     if not area_addr:
         usage()
 
-    isis = Isis(device, area_addr, src_id, lan_id, src_ip, passwd)
+    isis = Isis(area_addr, device, src_id, lan_id, src_ip, passwd)
     isis._mrtd = mrtd.Mrtd(file_pfx, "w+b", file_sz, mrtd_type, isis)
     isis._dump_mrtd = dump_mrtd
     if verbose > 1:
