@@ -1390,6 +1390,10 @@ class Isis:
             for entry in values:
                 fval += struct.pack("6s", entry)
 
+        elif ftype == VLEN_FIELDS["MultipleTopologies"]:
+            for entry in values:
+                fval += struct.pack(">H", entry)
+
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
             fval = struct.pack("B", values)
 
@@ -1441,6 +1445,9 @@ class Isis:
             ish = ish + self.mkVLenField("IPIfAddr", self._src_ip)
         if self._src_ip6:
             ish = ish + self.mkVLenField("IPv6IfAddr", self._src_ip6)
+
+        ish = ish + self.mkVLenField("MultipleTopologies",
+              (MTID["IPv4 routing topology"], MTID["IPv6 routing topology"]))
 
         if len(isns) > 0:
             ish = ish + self.mkVLenField("IIHIISNeighbor", isns)
