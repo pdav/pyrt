@@ -1576,25 +1576,25 @@ class Isis:
 
         elif msg_type in (MSG_TYPES["L1LSP"], MSG_TYPES["L2LSP"]):
 
+            lifetime = rv["V"]["LIFETIME"]
+            lsp_id = rv["V"]["LSP_ID"]
+            seq_no = rv["V"]["SEQ_NO"]
+            cksm = rv["V"]["CKSM"]
+
+            id_str = "%s.%s-%s" %\
+                (str2hex(lsp_id[0]), int2hex(lsp_id[1]), int2hex(lsp_id[2]))
+
+            if self._lsps.has_key(id_str):
+                lsp = self._lsps[id_str]
+                lsp._lifetime = lifetime
+                lsp._seq_no   = seq_no
+                lsp._cksm     = cksm
+            else:
+                lsp = Isis.LSP(lsp_id, lifetime, seq_no, cksm)
+                self._lsps[id_str] = lsp
+
             # Check whether a point-to-point adjacency exists with this host
             if self._adjs[smac].has_key(MSG_TYPES["PPHello"] - 14):
-
-                lifetime = rv["V"]["LIFETIME"]
-                lsp_id = rv["V"]["LSP_ID"]
-                seq_no = rv["V"]["SEQ_NO"]
-                cksm = rv["V"]["CKSM"]
-
-                id_str = "%s.%s-%s" %\
-                    (str2hex(lsp_id[0]), int2hex(lsp_id[1]), int2hex(lsp_id[2]))
-
-                if self._lsps.has_key(id_str):
-                    lsp = self._lsps[id_str]
-                    lsp._lifetime = lifetime
-                    lsp._seq_no   = seq_no
-                    lsp._cksm     = cksm
-                else:
-                    lsp = Isis.LSP(lsp_id, lifetime, seq_no, cksm)
-                    self._lsps[id_str] = lsp
 
                 psnp_entry = [ lifetime, lsp_id, seq_no, cksm ]
 
