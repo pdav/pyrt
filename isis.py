@@ -801,12 +801,12 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
                 # Ignore sub-TLVs (if any)
                 if subtlv:
-                    subtlv_length = struct.unpack ("> B", fval[0])
+                    (subtlv_length,) = struct.unpack ("> B", fval[0])
                     fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["DynamicHostname"]:
             ## 137
-            name = struct.unpack("> %ds" % flen, fval)
+            (name,) = struct.unpack("> %ds" % flen, fval)
             rv["V"] = name
 
             if verbose > 0:
@@ -940,7 +940,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
                 # Ignore sub-TLVs (if any)
                 if subtlv:
-                    subtlv_length = struct.unpack ("> B", fval[0])
+                    (subtlv_length,) = struct.unpack ("> B", fval[0])
                     fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["IPv6IPReach"]:
@@ -977,7 +977,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
             # Ignore sub-TLVs (if any)
             if subtlv:
-                subtlv_length = struct.unpack ("> B", fval[0])
+                (subtlv_length,) = struct.unpack ("> B", fval[0])
                 fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["MTIPv6IPReach"]:
@@ -1030,7 +1030,7 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
 
                 # Ignore sub-TLVs (if any)
                 if subtlv:
-                    subtlv_length = struct.unpack ("> B", fval[0])
+                    (subtlv_length,) = struct.unpack ("> B", fval[0])
                     fval = fval[1+subtlv_length:]
 
         elif ftype == VLEN_FIELDS["ThreeWayHello"]:
