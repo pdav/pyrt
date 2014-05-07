@@ -1579,8 +1579,6 @@ class Isis:
             # Check whether a point-to-point adjacency exists with this host
             if self._adjs[smac].has_key(MSG_TYPES["PPHello"] - 14):
 
-                k = msg_type - 17 # L1 or L2?
-
                 lifetime = rv["V"]["LIFETIME"]
                 lsp_id = rv["V"]["LSP_ID"]
                 seq_no = rv["V"]["SEQ_NO"]
@@ -1600,12 +1598,10 @@ class Isis:
 
                 psnp_entry = [ lifetime, lsp_id, seq_no, cksm ]
 
-                psnp = self.mkPsn (k, src_mac, [ psnp_entry ])
+                psnp = self.mkPsn (msg_type - 17, src_mac, [ psnp_entry ])
                 self.sendMsg(psnp, verbose, level)
 
         elif msg_type in (MSG_TYPES["L1CSN"], MSG_TYPES["L2CSN"]):
-
-            k = msg_type - 23 # L1 or L2?
 
             if rv["V"]["VFIELDS"].has_key(VLEN_FIELDS["LSPEntries"]):
 
@@ -1633,7 +1629,7 @@ class Isis:
                             psnp_entries.append(lsp_entry)
 
                 if psnp_entries:
-                    psnp = self.mkPsn (k, src_mac, psnp_entries)
+                    psnp = self.mkPsn (msg_type - 23, src_mac, psnp_entries)
                     self.sendMsg(psnp, verbose, level)
 
         else:
