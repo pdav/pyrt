@@ -1530,8 +1530,7 @@ class Isis:
                 adj._tx_ish = self.mkIsh(k, lan_id,
                                          Isis._holdtimer*Isis._hold_multiplier)
 
-            if adj._rtx_at <= RETX_THRESH:
-                self.sendMsg(adj._tx_ish, verbose, level)
+            adj._rtx_at = 0
 
         elif msg_type == MSG_TYPES["PPHello"]:
 
@@ -1571,8 +1570,7 @@ class Isis:
                                          Neighbor_local_circuit_id,
                                          tx_state)
 
-            if adj._rtx_at <= RETX_THRESH:
-                self.sendMsg(adj._tx_ish, verbose, level)
+            adj._rtx_at = 0
 
         elif msg_type in (MSG_TYPES["L1LSP"], MSG_TYPES["L2LSP"]):
 
@@ -1772,13 +1770,11 @@ if __name__ == "__main__":
         print `isis`
 
     try:
-        timeout = Isis._holdtimer
+        timeout = Isis._holdtimer - RETX_THRESH
         while 1: # main loop
 
             before  = time.time()
             rfds, _, _ = select.select([isis._sock], [], [], timeout)
-            after   = time.time()
-            elapsed = after - before
 
             if rfds != []:
                 # need to rx pkt(s)
@@ -1786,15 +1782,19 @@ if __name__ == "__main__":
 
             else:
                 # need to tx pkt(s) of some sort
-                timeout = Isis._holdtimer
-                for mac in isis._adjs.keys():
-                    for a in isis._adjs[mac].keys():
-                        adj = isis._adjs[mac][a]
-                        adj._rtx_at = adj._rtx_at - elapsed
-                        if adj._rtx_at <= RETX_THRESH:
-                            isis.sendMsg(adj._tx_ish, verbose, 0)
-                            adj._rtx_at = adj._holdtimer
-                        timeout = min(timeout, adj._rtx_at-RETX_THRESH)
+                timeout = Isis._holdtimer - RETX_THRESH
+
+            after   = time.time()
+            elapsed = after - before
+
+            for mac in isis._adjs.keys():
+                for a in isis._adjs[mac].keys():
+                    adj = isis._adjs[mac][a]
+                    adj._rtx_at = adj._rtx_at - elapsed
+                    if adj._rtx_at <= RETX_THRESH:
+                        isis.sendMsg(adj._tx_ish, verbose, 0)
+                        adj._rtx_at = adj._holdtimer
+                    timeout = min(timeout, adj._rtx_at-RETX_THRESH)
 
     except (KeyboardInterrupt):
         isis.close()
