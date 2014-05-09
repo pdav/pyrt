@@ -1527,15 +1527,14 @@ class Isis:
             k = msg_type - 14 # L1 or L2?
             if not self._adjs[smac].has_key(k):
                 # new adjacency
-                adj = Isis.Adj(k, rv, self.mkIsh(k, self._lan_id, Isis._holdtimer))
+                adj = Isis.Adj(k, rv, self.mkIsh(k, self._lan_id, rv["V"]["HOLDTIMER"]))
                 self._adjs[smac][k] = adj
 
             else:
                 # existing adjacency
                 adj = self._adjs[smac][k]
                 adj._state = STATES["UP"]
-                adj._tx_ish = self.mkIsh(k, lan_id,
-                                         Isis._holdtimer*Isis._hold_multiplier)
+                adj._tx_ish = self.mkIsh(k, lan_id, rv["V"]["HOLDTIMER"])
 
             adj._rtx_at = 0
 
@@ -1563,7 +1562,7 @@ class Isis:
 
             if not self._adjs[smac].has_key(3):
                 # new adjacency
-                adj = Isis.Adj(3, rv, self.mkPPIsh(src_mac, Isis._holdtimer,
+                adj = Isis.Adj(3, rv, self.mkPPIsh(src_mac, rv["V"]["HOLDTIMER"],
                                                    Neighbor_local_circuit_id,
                                                    tx_state))
                 self._adjs[smac][3] = adj
@@ -1572,8 +1571,7 @@ class Isis:
                 # existing adjacency
                 adj = self._adjs[smac][3]
                 adj._state = STATES["UP"]
-                adj._tx_ish = self.mkPPIsh(src_mac,
-                                         Isis._holdtimer*Isis._hold_multiplier,
+                adj._tx_ish = self.mkPPIsh(src_mac, rv["V"]["HOLDTIMER"],
                                          Neighbor_local_circuit_id,
                                          tx_state)
 
