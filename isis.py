@@ -92,7 +92,7 @@ from socket import AF_INET, AF_INET6, PF_PACKET, SOCK_RAW, socket,\
 VERSION = "3.0"
 INDENT  = "    "
 
-RETX_THRESH = 1
+RETX_THRESH = 3
 RCV_BUF_SZ  = 2048
 
 MAC_PKT_LEN  = 1514
