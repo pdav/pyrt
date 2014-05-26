@@ -4,18 +4,32 @@ from ctypes import *
 from socket import AF_INET, AF_INET6, AF_PACKET, inet_ntop
 from sys import platform
 
-def check_cksum (data, offset, length, checksum, offset_check):
+def calculate_iso_checksum (data, length, offset_check):
 
-    if checksum == 0:
-        return False, 'no checksum'
+    c0 = 0
+    c1 = 0
 
-    available_len = len (data[offset:])
-    offset_check -= offset
-    if available_len < length or offset_check < 0 or offset_check + 2 > length:
-        return False, 'data missing'
+    for i in range(length):
+
+        b = 0 if i == offset_check or i == offset_check + 1 else ord(data[i])
+
+        c0 = (c0 + b) % 255
+        c1 = (c1 + c0) % 255
+
+    factor = (length - offset_check) * c0
+
+    ck1 = (factor - (c0 + c1)) % 255
+    ck2 = (c1 - factor) % 255
+
+    if ck1 == 0: ck1 = 255
+    if ck2 == 0: ck2 = 255
+
+    return (ck1 << 8) | ck2
+
+
+def old_cksum (buff, length, offset_check):
 
     init_len = length
-    buff = data[offset:]
     block = offset_check / 5803
 
     p = 0
@@ -67,12 +81,26 @@ def check_cksum (data, offset, length, checksum, offset_check):
     if y == 0:
         y = 0x01
 
-    result = (x << 8) | (y & 0xFF)
+    return (x << 8) | (y & 0xFF)
+
+
+def check_cksum (data, offset, length, checksum, offset_check):
+
+    if checksum == 0:
+        return False, 'no checksum'
+
+    available_len = len (data[offset:])
+    offset_check -= offset
+    if available_len < length or offset_check < 0 or offset_check + 2 > length:
+        return False, 'data missing'
+
+    result = calculate_iso_checksum (data[offset:], length, offset_check)
 
     if result != checksum:
         return False, 'incorrect'
 
     return True, 'ok'
+
 
 def getifaddrs():
     
