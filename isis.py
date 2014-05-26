@@ -209,6 +209,16 @@ MTID = { 0L: "IPv4 routing topology",
          }
 DLIST = DLIST + [MTID]
 
+SUBTLV_FIELDS = { 3L: "AdminGroup",
+                  6L: "IPv4IntAddr",
+                  8L: "IPv4NbrAddr",
+                  9L: "MaxLinkBwidth",
+                  10L: "MaxResLinkBwidth",
+                  11L: "UnresBwidth",
+                  18L: "TEDefaultMetric"
+                  }
+DLIST = DLIST + [SUBTLV_FIELDS]
+
 for d in DLIST:
     for k in d.keys():
         d[ d[k] ] = k
@@ -671,6 +681,38 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
             while len(fval) > 0:
                 cnt += 1
                 nid, metric, sublen = struct.unpack("> 7s 3s B", fval[:11])
+                fval = fval[11:]
+
+                subfields = fval[:sublen]
+                while len(subfields) > 1:
+                    stype, slen = struct.unpack(">BB", subfields[:2])
+                    subfields = subfields[2:]
+
+                    if verbose > 0:
+                        if stype in SUBTLV_FIELDS.keys():
+                            print (level+1)*INDENT +\
+                                "subfield: %s, length: %d" %\
+                                    (SUBTLV_FIELDS[stype], slen)
+                        else:
+                            print (level+1)*INDENT +\
+                                "subfield: UNKNOWN, length: %d" % slen
+
+                    if stype == SUBTLV_FIELDS["IPv4IntAddr"]:
+                        (addr,) = struct.unpack(">4s", subfields[:4])
+                        if verbose > 0:
+                            print (level+2)*INDENT +\
+                                "address: " + `inet_ntop(AF_INET, addr)`
+
+                                
+                    elif stype == SUBTLV_FIELDS["IPv4NbrAddr"]:
+                        (addr,) = struct.unpack(">4s", subfields[:4])
+                        if verbose > 0:
+                            print (level+2)*INDENT +\
+                                "address: " + `inet_ntop(AF_INET, addr)`
+
+                    subfields = subfields[slen:]
+
+                fval = fval[sublen:]
 
                 rv["V"].append({ "NID": nid, "METRIC": metric })
 
@@ -678,8 +720,6 @@ def parseVLenField(ftype, flen, fval, verbose=1, level=0):
                     print level*INDENT +\
                             "IS Neighbour %d: id: %s metric: %d" %\
                             (cnt, str2hex(nid), str2int(metric))
-
-                fval = fval[11+sublen:]
 
         elif ftype == VLEN_FIELDS["IPIntReach"]:
             ## 128
